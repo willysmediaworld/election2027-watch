@@ -13,7 +13,7 @@ db.init_db()
 def index():
     return render_template('index.html')
 
-# AUTO-COLLATION WITH GEMINI AI
+# GEMINI AUTO COLLATION
 @app.route('/api/upload-auto-collate', methods=['POST'])
 def upload_auto_collate():
     if 'photo' not in request.files:
@@ -23,7 +23,6 @@ def upload_auto_collate():
     filepath = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(filepath)
     
-    # 1. Ask Gemini AI to parse the EC8A photo
     parsed = ai.extract_ec8a_results(filepath)
     
     data = {
@@ -33,15 +32,13 @@ def upload_auto_collate():
         "ward": request.form.get("ward"),
         "polling_unit": request.form.get("polling_unit"),
         "pu_code": request.form.get("pu_code"),
-        "submitted_by": request.form.get("submitted_by", "Oladele Rotimi Williams"),
+        "submitted_by": request.form.get("submitted_by", "Field Officer"),
         "image_url": f"/{filepath}"
     }
     
     if parsed["success"]:
         party_votes = parsed["data"]
         rejected_votes = party_votes.pop("rejected_votes", 0)
-        
-        # Instantly save as ACCEPTED and collate live
         updated_live = db.save_and_auto_collate_submission(data, party_votes, rejected_votes)
         return jsonify({
             "status": "success",
@@ -51,16 +48,15 @@ def upload_auto_collate():
             "live": updated_live
         })
     else:
-        # Fallback to pending queue if AI key is missing/fails
         db.save_pending_photo_submission(data)
         return jsonify({
             "status": "warning",
             "mode": "pending",
-            "message": "⚠️ AI Parsing unavailable. Submission routed to Review Queue for manual collation.",
+            "message": "⚠️ AI Parsing unavailable. Submission routed to Review Queue.",
             "error": parsed.get("error")
         })
 
-# MANUAL PHOTO SUBMISSION
+# MANUAL PHOTO UPLOAD
 @app.route('/api/upload-photo-result', methods=['POST'])
 def upload_photo_result():
     if 'photo' not in request.files:
@@ -77,7 +73,7 @@ def upload_photo_result():
         "ward": request.form.get("ward"),
         "polling_unit": request.form.get("polling_unit"),
         "pu_code": request.form.get("pu_code"),
-        "submitted_by": request.form.get("submitted_by", "Oladele Rotimi Williams"),
+        "submitted_by": request.form.get("submitted_by", "Field Officer"),
         "image_url": f"/{filepath}"
     }
     
@@ -108,7 +104,7 @@ def reset_system():
     res = db.reset_system_to_default()
     return jsonify(res)
 
-# DATA APIS
+# LIVE & RESULTS APIS
 @app.route('/api/live-results', methods=['GET'])
 def live_results():
     election_id = request.args.get('election_id', 'ijebu_east_sha')
@@ -131,6 +127,7 @@ def audit_log():
     logs = db.get_audit_log_archive()
     return jsonify(logs)
 
+# ADMIN ENTITY ENDPOINTS
 @app.route('/api/admin/users', methods=['GET', 'POST'])
 def handle_users():
     if request.method == 'POST':
@@ -152,9 +149,23 @@ def handle_parties():
         return jsonify(db.create_party(data.get('name'), data.get('acronym'), data.get('inec_code'), data.get('is_active', True)))
     return jsonify(db.get_all_parties())
 
+@app.route('/api/admin/candidates', methods=['GET', 'POST'])
+def handle_candidates():
+    if request.method == 'POST':
+        data = request.json
+        return jsonify(db.create_candidate(data.get('full_name'), data.get('party'), data.get('election_name')))
+    return jsonify(db.get_all_candidates())
+
+@app.route('/api/admin/locations', methods=['GET', 'POST'])
+def handle_locations():
+    if request.method == 'POST':
+        data = request.json
+        return jsonify(db.create_location(data.get('state'), data.get('lga'), data.get('ward'), data.get('polling_unit'), data.get('pu_code')))
+    return jsonify(db.get_all_locations())
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     print(f"==================================================")
     print(f" 2027 ELECTION WATCH SERVER ACTIVE ON PORT {port}")
     print(f"==================================================")
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=True)
