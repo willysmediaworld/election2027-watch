@@ -97,7 +97,7 @@ def handle_elections():
 def handle_parties():
     if request.method == 'POST':
         data = request.json
-        return jsonify(db.create_party(data.get('name'), data.get('acronym'), data.get('inec_code'), data.get('is_active', True)))
+        return jsonify(db.create_party(data.get('name'), data.get('acronym'), data.get('inec_code'), data.get('logo_url', ''), data.get('is_active', True)))
     return jsonify(db.get_all_parties())
 
 @app.route('/api/admin/candidates', methods=['GET', 'POST'])
