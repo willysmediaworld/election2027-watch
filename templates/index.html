@@ -9,7 +9,7 @@
 </head>
 <body>
 
-    <!-- AUTHENTICATION -->
+    <!-- AUTHENTICATION PAGE (CLEARED PREFILLED DATA + GUEST ACCESS) -->
     <div id="authPage" class="page active">
         <div class="auth-container">
             <div class="logo-box">
@@ -28,14 +28,19 @@
             <form id="loginForm" class="auth-form">
                 <div class="input-group">
                     <label for="username">Username</label>
-                    <input type="text" id="username" value="Oladele Rotimi Williams" required>
+                    <input type="text" id="username" placeholder="Enter username" required>
                 </div>
                 <div class="input-group">
                     <label for="password">Password</label>
-                    <input type="password" id="password" value="••••••••" required>
+                    <input type="password" id="password" placeholder="Enter password" required>
                 </div>
                 <button type="submit" class="btn-submit">🔐 Sign In</button>
             </form>
+
+            <div style="margin-top:20px; border-top:1px solid #e2e8f0; padding-top:15px; width:100%;">
+                <p style="font-size:12px; color:#64748b; margin-bottom:8px;">Public Visitor / Citizen Access:</p>
+                <button type="button" class="btn-submit" style="background:#2563eb;" onclick="openGuestViewer()">🌐 View Public Live Results (Guest Access)</button>
+            </div>
         </div>
     </div>
 
@@ -49,9 +54,9 @@
         <div class="user-bar">
             <div class="user-info">
                 <span class="user-icon">👤</span>
-                <span id="userDisplayName">Oladele Rotimi Williams · SuperAdmin</span>
+                <span id="userDisplayName">Guest Observer · Read-Only</span>
             </div>
-            <button id="logoutBtn" class="btn-logout">Logout</button>
+            <button id="logoutBtn" class="btn-logout">Exit / Login</button>
         </div>
 
         <main class="dashboard-content">
@@ -175,7 +180,7 @@
                     </div>
                 </div>
 
-                <!-- Step 5: DUAL EXECUTION FLOW -->
+                <!-- Step 5 -->
                 <div id="uploadStep5" class="wizard-step">
                     <h3 class="step-title">5. Result Sheet Evidence</h3>
                     <div class="summary-box">
@@ -195,7 +200,6 @@
                         <img id="uploadPreviewImg" src="" style="width:100%; max-height:280px; object-fit:contain; border-radius:10px; border:2px solid #0c235c;">
                     </div>
 
-                    <!-- ACTION BUTTONS -->
                     <div id="uploadActionButtons" style="display:none; flex-direction:column; gap:10px; margin-bottom:15px;">
                         <button class="btn-submit" style="background:#16a34a;" onclick="submitAutoCollateWithAI()">🤖 Auto-Collate with Gemini AI</button>
                         <button class="btn-submit" style="background:#0c235c;" onclick="submitPhotoOnly()">📤 Route to Manual Review Queue</button>
@@ -227,7 +231,7 @@
                 </div>
             </section>
 
-            <!-- TAB 5: ADMINISTRATION & SYSTEM RESET -->
+            <!-- TAB 5: ADMINISTRATION (ALL 5 WORKING MODALS) -->
             <section id="tab-admin" class="tab-content">
                 <div class="section-heading"><span class="heading-icon">⚙️</span><h2>Administration</h2></div>
                 
@@ -239,14 +243,14 @@
                 </div>
                 <button class="btn-select-option" style="width:100%; margin-bottom:15px;" onclick="openAdminModal('location')">🌍 Locations</button>
 
+                <div id="adminDataDisplay" style="margin-top:15px;"></div>
+
                 <!-- SUPER ADMIN DANGER ZONE -->
                 <div class="info-box" style="background:#fef2f2; border-color:#fca5a5; color:#991b1b; margin-top:20px;">
                     <h4 style="font-weight:800; margin-bottom:5px;">🚨 Super Admin Danger Zone</h4>
                     <p style="font-size:12px; margin-bottom:12px;">Resetting wipes all uploaded result sheets, clears live tallies to 0, and restores default factory settings.</p>
                     <button class="btn-submit" style="background:#dc2626;" onclick="triggerSystemReset()">⚡ Reset System to Default</button>
                 </div>
-
-                <div id="adminDataDisplay" style="margin-top:15px;"></div>
             </section>
 
             <footer class="app-footer">
@@ -259,13 +263,99 @@
         <nav class="bottom-nav">
             <button class="nav-item active" data-tab="live"><span class="nav-label">Live</span></button>
             <button class="nav-item" data-tab="results"><span class="nav-label">Results</span></button>
-            <button class="nav-item" data-tab="upload"><span class="nav-label">Upload</span></button>
+            <button class="nav-item" data-tab="upload" id="navUploadBtn"><span class="nav-label">Upload</span></button>
             <button class="nav-item" data-tab="review"><span class="nav-label">Review</span></button>
-            <button class="nav-item" data-tab="admin"><span class="nav-label">Admin</span></button>
+            <button class="nav-item" data-tab="admin" id="navAdminBtn"><span class="nav-label">Admin</span></button>
         </nav>
     </div>
 
-    <!-- MODAL: MANUAL COLLATION -->
+    <!-- ADMIN MODAL 1: CREATE USER -->
+    <div id="adminUserModal" class="modal-overlay">
+        <div class="modal-card">
+            <h3 style="color:#0c235c; margin-bottom:12px;">👤 Create User</h3>
+            <div class="input-group"><label>Full Name</label><input type="text" id="adminUserFullName" placeholder="e.g. John Doe"></div>
+            <div class="input-group"><label>Username</label><input type="text" id="adminUsername" placeholder="e.g. jdoe"></div>
+            <div class="input-group">
+                <label>Role</label>
+                <select id="adminUserRole">
+                    <option value="Viewer">Viewer — Read-Only Dashboard & Results</option>
+                    <option value="Field Officer">Field Officer — Assigned PU Submissions</option>
+                    <option value="Media Admin">Media Admin — Upload & Verification</option>
+                    <option value="Super Admin">Super Admin — Full System Control</option>
+                </select>
+            </div>
+            <div class="input-group"><label>Email</label><input type="email" id="adminUserEmail" placeholder="user@domain.com"></div>
+            <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateUser()">Create User</button>
+            <button class="btn-secondary" onclick="closeAdminModals()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- ADMIN MODAL 2: CREATE ELECTION -->
+    <div id="adminElectionModal" class="modal-overlay">
+        <div class="modal-card">
+            <h3 style="color:#0c235c; margin-bottom:12px;">📦 Create Election</h3>
+            <div class="input-group"><label>Election Name</label><input type="text" id="adminElectName" placeholder="e.g. Ijebu East Senatorial Election 2027"></div>
+            <div class="input-group">
+                <label>Election Type</label>
+                <select id="adminElectType">
+                    <option value="Presidential">Presidential</option>
+                    <option value="Governorship">Governorship</option>
+                    <option value="Senatorial">Senatorial</option>
+                    <option value="House of Representatives">House of Representatives</option>
+                    <option value="State House of Assembly">State House of Assembly</option>
+                </select>
+            </div>
+            <div class="input-group"><label>Constituency</label><input type="text" id="adminElectConstituency" placeholder="e.g. Ijebu East"></div>
+            <div class="input-group"><label>Result Form</label><input type="text" value="EC8A" readonly></div>
+            <div class="input-group"><label>Registered Voters</label><input type="number" id="adminElectVoters" value="50000"></div>
+            <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateElection()">Create Election</button>
+            <button class="btn-secondary" onclick="closeAdminModals()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- ADMIN MODAL 3: CREATE PARTY -->
+    <div id="adminPartyModal" class="modal-overlay">
+        <div class="modal-card">
+            <h3 style="color:#0c235c; margin-bottom:12px;">🏛️ Create Party</h3>
+            <div class="input-group"><label>Party Name</label><input type="text" id="adminPartyName" placeholder="e.g. All Progressives Congress"></div>
+            <div class="input-group"><label>Acronym</label><input type="text" id="adminPartyAcronym" placeholder="e.g. APC"></div>
+            <div class="input-group"><label>INEC Code</label><input type="text" id="adminPartyCode" placeholder="e.g. 004"></div>
+            <div style="margin-bottom:15px; display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="adminPartyActive" checked>
+                <label for="adminPartyActive">Active Party</label>
+            </div>
+            <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateParty()">Save Party</button>
+            <button class="btn-secondary" onclick="closeAdminModals()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- ADMIN MODAL 4: CREATE CANDIDATE -->
+    <div id="adminCandidateModal" class="modal-overlay">
+        <div class="modal-card">
+            <h3 style="color:#0c235c; margin-bottom:12px;">👥 Add Candidate</h3>
+            <div class="input-group"><label>Candidate Full Name</label><input type="text" id="adminCandName" placeholder="e.g. Hon. Adeleke Williams"></div>
+            <div class="input-group"><label>Party Acronym</label><input type="text" id="adminCandParty" placeholder="e.g. APC"></div>
+            <div class="input-group"><label>Election</label><input type="text" id="adminCandElection" value="Ijebu East State House of Assembly Election 2027"></div>
+            <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateCandidate()">Save Candidate</button>
+            <button class="btn-secondary" onclick="closeAdminModals()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- ADMIN MODAL 5: CREATE LOCATION -->
+    <div id="adminLocationModal" class="modal-overlay">
+        <div class="modal-card">
+            <h3 style="color:#0c235c; margin-bottom:12px;">🌍 Add Location / PU</h3>
+            <div class="input-group"><label>State</label><input type="text" id="adminLocState" value="Ogun"></div>
+            <div class="input-group"><label>LGA</label><input type="text" id="adminLocLGA" value="Ijebu East"></div>
+            <div class="input-group"><label>Ward Name</label><input type="text" id="adminLocWard" placeholder="e.g. Ijebu Mushin I"></div>
+            <div class="input-group"><label>Polling Unit Name</label><input type="text" id="adminLocPU" placeholder="e.g. PU 001"></div>
+            <div class="input-group"><label>PU Code</label><input type="text" id="adminLocCode" placeholder="e.g. 01-001"></div>
+            <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateLocation()">Save Location</button>
+            <button class="btn-secondary" onclick="closeAdminModals()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- MANUAL COLLATION REVIEW MODAL -->
     <div id="reviewModal" class="modal-overlay">
         <div class="modal-card" style="max-width:450px; max-height:90vh; overflow-y:auto;">
             <h3 style="color:#0c235c; margin-bottom:10px;">🔍 Manual Result Collation</h3>
