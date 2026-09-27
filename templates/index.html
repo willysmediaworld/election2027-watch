@@ -312,7 +312,8 @@
             <h3 style="color:#0c235c; margin-bottom:12px;">🏛️ Create Party</h3>
             <div class="input-group"><label>Party Name</label><input type="text" id="adminPartyName" placeholder="e.g. All Progressives Congress"></div>
             <div class="input-group"><label>Acronym</label><input type="text" id="adminPartyAcronym" placeholder="e.g. APC"></div>
-            <div class="input-group"><label>INEC Code</label><input type="text" id="adminPartyCode" placeholder="e.g. 004"></div>
+            <div class="input-group"><label>INEC Code</label><input type="text" id="adminPartyCode" placeholder="e.g. 007"></div>
+            <div class="input-group"><label>Party Logo URL</label><input type="text" id="adminPartyLogo" placeholder="https://example.com/logo.png"></div>
             <div style="margin-bottom:15px; display:flex; align-items:center; gap:8px;">
                 <input type="checkbox" id="adminPartyActive" checked>
                 <label for="adminPartyActive">Active Party</label>
@@ -322,12 +323,26 @@
         </div>
     </div>
 
+    <!-- PREFILLED DROPDOWNS FOR CANDIDATE CREATION -->
     <div id="adminCandidateModal" class="modal-overlay">
         <div class="modal-card">
             <h3 style="color:#0c235c; margin-bottom:12px;">👥 Add Candidate</h3>
             <div class="input-group"><label>Candidate Full Name</label><input type="text" id="adminCandName" placeholder="e.g. Hon. Foluso Oladele"></div>
-            <div class="input-group"><label>Party Acronym</label><input type="text" id="adminCandParty" placeholder="e.g. APC"></div>
-            <div class="input-group"><label>Election</label><input type="text" id="adminCandElection" value="Ijebu East State House of Assembly Election 2027"></div>
+            
+            <div class="input-group">
+                <label>Political Party (Prefilled Dropdown)</label>
+                <select id="adminCandParty" style="width:100%; padding:12px; border-radius:8px; border:1px solid #ccc;">
+                    <option value="">Loading Parties...</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label>Target Election (Prefilled Dropdown)</label>
+                <select id="adminCandElection" style="width:100%; padding:12px; border-radius:8px; border:1px solid #ccc;">
+                    <option value="">Loading Elections...</option>
+                </select>
+            </div>
+
             <div class="input-group"><label>Aspirant Picture</label><input type="file" id="adminCandPhoto" accept="image/*"></div>
             <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateCandidate()">Save Candidate</button>
             <button class="btn-secondary" onclick="closeAdminModals()">Cancel</button>
@@ -360,17 +375,7 @@
 
             <h4 style="color:#0c235c; margin-bottom:8px; border-bottom:2px solid #e2e8f0; padding-bottom:4px;">Verify / Collate Party Votes</h4>
             <div id="reviewPartyInputs">
-                <div class="input-row"><label>Accord (A)</label><input type="number" id="review_A" value="0"></div>
-                <div class="input-row"><label>Action Alliance (AA)</label><input type="number" id="review_AA" value="0"></div>
-                <div class="input-row"><label>Action Democratic Party (ADP)</label><input type="number" id="review_ADP" value="0"></div>
-                <div class="input-row"><label>All Progressives Congress (APC)</label><input type="number" id="review_APC" value="0"></div>
-                <div class="input-row"><label>All Progressives Grand Alliance (APGA)</label><input type="number" id="review_APGA" value="0"></div>
-                <div class="input-row"><label>Labour Party (LP)</label><input type="number" id="review_LP" value="0"></div>
-                <div class="input-row"><label>New Nigeria Peoples Party (NNPP)</label><input type="number" id="review_NNPP" value="0"></div>
-                <div class="input-row"><label>Peoples Democratic Party (PDP)</label><input type="number" id="review_PDP" value="0"></div>
-                <div class="input-row"><label>Social Democratic Party (SDP)</label><input type="number" id="review_SDP" value="0"></div>
-                <div class="input-row"><label>Young Progressive Party (YPP)</label><input type="number" id="review_YPP" value="0"></div>
-                <div class="input-row"><label>Rejected Votes</label><input type="number" id="review_Rejected" value="0"></div>
+                <!-- Dynamically generated for all 19 parties -->
             </div>
 
             <textarea id="reviewNotes" placeholder="Notes or rejection reason..." style="width:100%; height:45px; padding:8px; border-radius:6px; border:1px solid #ccc; margin-top:10px;"></textarea>
