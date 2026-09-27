@@ -68,11 +68,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// PUBLIC GUEST VIEWER MODE
 function openGuestViewer() {
     isGuestUser = true;
     if (document.getElementById('userDisplayName')) {
-        document.getElementById('userDisplayName').innerText = "Guest Visitor · Read-Only Access";
+        document.getElementById('userDisplayName').innerText = "Guest Observer · Read-Only Access";
     }
     
     setGuestPermissions(true);
@@ -87,18 +86,20 @@ function openGuestViewer() {
 
 function setGuestPermissions(isGuest) {
     const navUpload = document.getElementById('navUploadBtn');
+    const navReview = document.getElementById('navReviewBtn');
     const navAdmin = document.getElementById('navAdminBtn');
 
     if (isGuest) {
         if (navUpload) navUpload.style.display = 'none';
+        if (navReview) navReview.style.display = 'none';
         if (navAdmin) navAdmin.style.display = 'none';
     } else {
         if (navUpload) navUpload.style.display = 'flex';
+        if (navReview) navReview.style.display = 'flex';
         if (navAdmin) navAdmin.style.display = 'flex';
     }
 }
 
-// ADMIN MODALS CONTROL (ALL 5 FUNCTIONAL)
 function openAdminModal(type) {
     closeAdminModals();
     if (type === 'user') document.getElementById('adminUserModal')?.classList.add('active');
@@ -167,15 +168,19 @@ function submitCreateParty() {
 }
 
 function submitCreateCandidate() {
-    const payload = {
-        full_name: document.getElementById('adminCandName')?.value || '',
-        party: document.getElementById('adminCandParty')?.value || '',
-        election_name: document.getElementById('adminCandElection')?.value || ''
-    };
+    const formData = new FormData();
+    formData.append('full_name', document.getElementById('adminCandName')?.value || '');
+    formData.append('party', document.getElementById('adminCandParty')?.value || '');
+    formData.append('election_name', document.getElementById('adminCandElection')?.value || '');
+    
+    const photoInput = document.getElementById('adminCandPhoto');
+    if (photoInput && photoInput.files[0]) {
+        formData.append('photo', photoInput.files[0]);
+    }
+
     fetch('/api/admin/candidates', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(payload)
+        body: formData
     }).then(res => res.json()).then(res => {
         alert(res.message || 'Candidate saved!');
         closeAdminModals();
@@ -217,9 +222,12 @@ function loadAdminData(type) {
         let html = `<h4 style="color:#0c235c; margin-bottom:8px;">Registered ${type.toUpperCase()} (${data.length})</h4><div class="candidate-list">`;
         data.forEach(item => {
             html += `
-            <div class="candidate-card" style="padding:10px;">
-                <strong>${item.full_name || item.name || item.acronym || item.polling_unit}</strong>
-                <p><small>${item.role || item.type || item.party || item.ward || ''} ${item.email ? '· ' + item.email : ''} ${item.pu_code ? '(' + item.pu_code + ')' : ''}</small></p>
+            <div class="candidate-card" style="padding:10px; display:flex; align-items:center; gap:12px;">
+                ${item.photo_url ? `<img src="${item.photo_url}" style="width:45px; height:45px; border-radius:50%; object-fit:cover;">` : ''}
+                <div>
+                    <strong>${item.full_name || item.name || item.acronym || item.polling_unit}</strong>
+                    <p><small>${item.role || item.type || item.party || item.ward || ''} ${item.email ? '· ' + item.email : ''} ${item.pu_code ? '(' + item.pu_code + ')' : ''}</small></p>
+                </div>
             </div>`;
         });
         html += '</div>';
@@ -227,7 +235,6 @@ function loadAdminData(type) {
     });
 }
 
-// SYSTEM RESET CONTROL
 function triggerSystemReset() {
     const confirmReset = confirm("⚡ DANGER ZONE: Are you sure you want to reset the entire system to default? This will wipe all test submissions, uploaded image files, and clear live tallies to 0!");
     
@@ -244,7 +251,6 @@ function triggerSystemReset() {
     }
 }
 
-// UPLOAD WIZARD
 function goToUploadStep(stepNumber) {
     const steps = document.querySelectorAll('.wizard-step');
     const dots = document.querySelectorAll('.dots-indicator .dot');
@@ -305,43 +311,6 @@ function previewUploadImage(input) {
     }
 }
 
-function submitAutoCollateWithAI() {
-    if (!selectedPhotoFile) {
-        alert("Please select a result sheet photograph first.");
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append('photo', selectedPhotoFile);
-    formData.append('election_id', currentUploadData.election_id);
-    formData.append('election_name', currentUploadData.election_name);
-    formData.append('ward', currentUploadData.ward);
-    formData.append('polling_unit', currentUploadData.polling_unit);
-    formData.append('pu_code', currentUploadData.pu_code);
-    formData.append('submitted_by', document.getElementById('username')?.value || 'Field Officer');
-
-    alert("🤖 Sending EC8A Form to Gemini AI for scanning and auto-collation...");
-
-    fetch('/api/upload-auto-collate', {
-        method: 'POST',
-        body: formData
-    })
-    .then(res => res.json())
-    .then(res => {
-        alert(res.message || "✓ Auto-collation complete!");
-        selectedPhotoFile = null;
-        if (document.getElementById('imagePreviewBox')) document.getElementById('imagePreviewBox').style.display = 'none';
-        if (document.getElementById('uploadActionButtons')) document.getElementById('uploadActionButtons').style.display = 'none';
-        goToUploadStep(1);
-
-        const liveTabNav = document.querySelector('.nav-item[data-tab="live"]');
-        if (liveTabNav) liveTabNav.click();
-        
-        loadLiveResults();
-        loadWardTable();
-    });
-}
-
 function submitPhotoOnly() {
     if (!selectedPhotoFile) {
         alert("Please select a result sheet photograph first.");
@@ -376,7 +345,6 @@ function submitPhotoOnly() {
     });
 }
 
-// REVIEW QUEUE & AUDIT ARCHIVE
 function switchReviewSubTab(type) {
     const btnPending = document.getElementById('btnViewPending');
     const btnAudit = document.getElementById('btnViewAudit');
@@ -524,7 +492,6 @@ function submitManualCollation(status) {
     });
 }
 
-// LIVE RESULTS & WARD TABLES
 function loadLiveResults() {
     const electionSelect = document.getElementById('liveElectionSelect');
     const selectedId = electionSelect ? electionSelect.value : 'ijebu_east_sha';
@@ -538,8 +505,18 @@ function renderLiveUI(data) {
     if (!data) return;
 
     if (document.getElementById('leaderTitle')) document.getElementById('leaderTitle').innerText = data.leader?.candidate || 'Awaiting Verified Results';
+    if (document.getElementById('leaderParty')) document.getElementById('leaderParty').innerText = data.leader?.party !== 'N/A' ? `Party: ${data.leader?.party}` : '';
     if (document.getElementById('leaderVotes')) document.getElementById('leaderVotes').innerText = (data.leader?.votes || 0).toLocaleString();
     if (document.getElementById('leaderPct')) document.getElementById('leaderPct').innerText = data.leader?.percentage || '0%';
+
+    const avatarBox = document.getElementById('leaderAvatar');
+    if (avatarBox) {
+        if (data.leader?.photo) {
+            avatarBox.innerHTML = `<img src="${data.leader.photo}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+        } else {
+            avatarBox.innerText = '👤';
+        }
+    }
 
     if (document.getElementById('statCast')) document.getElementById('statCast').innerText = (data.metrics?.votes_cast || 0).toLocaleString();
     if (document.getElementById('statTurnout')) document.getElementById('statTurnout').innerText = data.metrics?.turnout || '0.0%';
@@ -562,9 +539,12 @@ function renderLiveUI(data) {
             html += `
             <div class="candidate-card">
                 <div class="candidate-info">
-                    <div>
-                        <h4>#${index + 1} ${item.party} Candidate</h4>
-                        <p>${item.party}</p>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        ${item.photo ? `<img src="${item.photo}" style="width:48px; height:48px; border-radius:50%; object-fit:cover; border:2px solid #0c235c;">` : `<div style="width:48px; height:48px; border-radius:50%; background:#e2e8f0; display:flex; justify-content:center; align-items:center; font-size:22px;">👤</div>`}
+                        <div>
+                            <h4>${item.candidate}</h4>
+                            <p style="font-weight:700; color:#0c235c;">${item.party}</p>
+                        </div>
                     </div>
                     <div class="candidate-score">
                         <span class="votes">${(item.votes || 0).toLocaleString()}</span>
