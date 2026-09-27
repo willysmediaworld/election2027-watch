@@ -14,7 +14,6 @@ def init_db():
     conn = get_db()
     cursor = conn.cursor()
     
-    # Submissions Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS submissions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,16 +36,7 @@ def init_db():
             verified_at DATETIME
         )
     ''')
-    
-    # Auto-migration check
-    cursor.execute("PRAGMA table_info(submissions)")
-    cols = [c[1] for c in cursor.fetchall()]
-    if 'verified_by' not in cols:
-        cursor.execute("ALTER TABLE submissions ADD COLUMN verified_by TEXT")
-    if 'verified_at' not in cols:
-        cursor.execute("ALTER TABLE submissions ADD COLUMN verified_at DATETIME")
 
-    # Users Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,7 +48,6 @@ def init_db():
         )
     ''')
     
-    # Elections Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS elections (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,7 +58,6 @@ def init_db():
         )
     ''')
     
-    # Parties Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS parties (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,18 +68,22 @@ def init_db():
         )
     ''')
 
-    # Candidates Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS candidates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             full_name TEXT,
             party TEXT,
             election_name TEXT,
+            photo_url TEXT DEFAULT '',
             created_at DATETIME
         )
     ''')
+    
+    cursor.execute("PRAGMA table_info(candidates)")
+    cols = [c[1] for c in cursor.fetchall()]
+    if 'photo_url' not in cols:
+        cursor.execute("ALTER TABLE candidates ADD COLUMN photo_url TEXT DEFAULT ''")
 
-    # Locations Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS locations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,13 +95,11 @@ def init_db():
         )
     ''')
     
-    # Seed default user if empty
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO users (full_name, username, role, email, created_at) VALUES (?, ?, ?, ?, ?)",
                        ("Oladele Rotimi Williams", "Oladele Rotimi Williams", "Super Admin", "admin@electionwatch.ng", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
-    # Seed default parties if empty
     cursor.execute("SELECT COUNT(*) FROM parties")
     if cursor.fetchone()[0] == 0:
         default_parties = [
@@ -125,46 +115,22 @@ def init_db():
             ("Young Progressive Party", "YPP", "010")
         ]
         cursor.executemany("INSERT INTO parties (name, acronym, inec_code) VALUES (?, ?, ?)", default_parties)
+
+    cursor.execute("SELECT COUNT(*) FROM candidates")
+    if cursor.fetchone()[0] == 0:
+        default_candidates = [
+            ("Hon. Foluso Oladele", "APC", "Ijebu East State House of Assembly Election 2027", ""),
+            ("Hon. Segun Adebayo", "PDP", "Ijebu East State House of Assembly Election 2027", ""),
+            ("Hon. Chidi Nnamdi", "LP", "Ijebu East State House of Assembly Election 2027", ""),
+            ("Hon. Rabiu Olanrewaju", "NNPP", "Ijebu East State House of Assembly Election 2027", ""),
+            ("Hon. Adebisi Samson", "SDP", "Ijebu East State House of Assembly Election 2027", "")
+        ]
+        cursor.executemany("INSERT INTO candidates (full_name, party, election_name, photo_url, created_at) VALUES (?, ?, ?, ?, ?)", 
+                           [(c[0], c[1], c[2], c[3], datetime.now().strftime("%Y-%m-%d %H:%M:%S")) for c in default_candidates])
         
     conn.commit()
     conn.close()
 
-# GEMINI AUTO COLLATION
-def save_and_auto_collate_submission(data, party_votes, rejected_votes):
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    valid_votes = sum(int(v) for v in party_votes.values())
-    rejected = int(rejected_votes)
-    total_cast = valid_votes + rejected
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    cursor.execute('''
-        INSERT INTO submissions 
-        (election_id, election_name, lga, ward, polling_unit, pu_code, party_votes, valid_votes, rejected_votes, total_votes_cast, image_url, submitted_by, timestamp, status, verified_by, verified_at, review_notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACCEPTED', 'Gemini AI (Auto-Collated)', ?, 'Parsed & Auto-Collated via Gemini AI')
-    ''', (
-        data.get('election_id', 'ijebu_east_sha'),
-        data.get('election_name', 'Ijebu East State House of Assembly Election 2027'),
-        data.get('lga', 'Ijebu East'),
-        data.get('ward'),
-        data.get('polling_unit'),
-        data.get('pu_code'),
-        json.dumps(party_votes),
-        valid_votes,
-        rejected,
-        total_cast,
-        data.get('image_url', ''),
-        data.get('submitted_by', 'Oladele Rotimi Williams'),
-        now_str,
-        now_str
-    ))
-    
-    conn.commit()
-    conn.close()
-    return get_live_collation(data.get('election_id', 'ijebu_east_sha'))
-
-# PENDING PHOTO SUBMISSION
 def save_pending_photo_submission(data):
     conn = get_db()
     cursor = conn.cursor()
@@ -187,7 +153,6 @@ def save_pending_photo_submission(data):
     conn.close()
     return {"status": "success", "message": "Photo uploaded successfully and routed to Review Queue!"}
 
-# ADMIN MANUAL COLLATION
 def admin_verify_and_collate(sub_id, party_votes, rejected_votes, status, notes="", verified_by="Super Admin"):
     conn = get_db()
     cursor = conn.cursor()
@@ -220,11 +185,14 @@ def admin_verify_and_collate(sub_id, party_votes, rejected_votes, status, notes=
     conn.close()
     return get_live_collation(election_id)
 
-# LIVE COLLATION MATH
 def get_live_collation(election_id=None):
     conn = get_db()
     cursor = conn.cursor()
     
+    cursor.execute("SELECT full_name, party, photo_url FROM candidates")
+    cand_rows = cursor.fetchall()
+    candidates_map = {c['party']: {"name": c['full_name'], "photo": c['photo_url']} for c in cand_rows}
+
     if election_id and election_id != 'all':
         cursor.execute("SELECT party_votes, valid_votes, rejected_votes, total_votes_cast FROM submissions WHERE status = 'ACCEPTED' AND election_id = ?", (election_id,))
     else:
@@ -249,23 +217,36 @@ def get_live_collation(election_id=None):
         for party, count in votes.items():
             party_totals[party] = party_totals.get(party, 0) + int(count)
             
-    leader = {"candidate": "Awaiting Verified Results", "party": "N/A", "votes": 0, "percentage": "0%"}
+    leader = {
+        "candidate": "Awaiting Verified Results",
+        "party": "N/A",
+        "votes": 0,
+        "percentage": "0%",
+        "photo": ""
+    }
+    
     if party_totals and grand_valid > 0:
         top_party = max(party_totals, key=party_totals.get)
         top_votes = party_totals[top_party]
         top_pct = round((top_votes / grand_valid * 100), 1)
+        cand_info = candidates_map.get(top_party, {"name": f"{top_party} Candidate", "photo": ""})
+        
         leader = {
-            "candidate": f"{top_party} Candidate",
+            "candidate": cand_info["name"],
             "party": top_party,
             "votes": top_votes,
-            "percentage": f"{top_pct}%"
+            "percentage": f"{top_pct}%",
+            "photo": cand_info["photo"]
         }
         
     standings = []
     for party, count in party_totals.items():
         pct = round((count / grand_valid * 100), 1) if grand_valid > 0 else 0
+        cand_info = candidates_map.get(party, {"name": f"{party} Candidate", "photo": ""})
         standings.append({
+            "candidate": cand_info["name"],
             "party": party,
+            "photo": cand_info["photo"],
             "votes": count,
             "percentage": f"{pct}%",
             "percent_num": pct
@@ -286,7 +267,6 @@ def get_live_collation(election_id=None):
         "standings": standings
     }
 
-# SYSTEM RESET
 def reset_system_to_default():
     conn = get_db()
     cursor = conn.cursor()
@@ -312,7 +292,6 @@ def reset_system_to_default():
                     pass
     return {"success": True, "message": "⚡ System successfully reset to default factory state!"}
 
-# QUEUES & TABLES
 def get_pending_review_queue():
     conn = get_db()
     cursor = conn.cursor()
@@ -355,7 +334,6 @@ def get_ward_results(election_id='ijebu_east_sha'):
         results.append(item)
     return results
 
-# ALL ADMIN ENTITY GETTERS & CREATORS
 def get_all_users():
     conn = get_db()
     cursor = conn.cursor()
@@ -423,14 +401,14 @@ def get_all_candidates():
     conn.close()
     return [dict(r) for r in rows]
 
-def create_candidate(full_name, party, election_name):
+def create_candidate(full_name, party, election_name, photo_url=""):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO candidates (full_name, party, election_name, created_at) VALUES (?, ?, ?, ?)",
-                   (full_name, party, election_name, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    cursor.execute("INSERT INTO candidates (full_name, party, election_name, photo_url, created_at) VALUES (?, ?, ?, ?, ?)",
+                   (full_name, party, election_name, photo_url, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
     conn.close()
-    return {"success": True, "message": f"Candidate '{full_name}' saved!"}
+    return {"success": True, "message": f"Candidate '{full_name}' saved successfully!"}
 
 def get_all_locations():
     conn = get_db()
