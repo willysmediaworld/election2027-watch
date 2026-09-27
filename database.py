@@ -38,7 +38,7 @@ def init_db():
         )
     ''')
     
-    # Auto-migration for existing databases
+    # Auto-migration check
     cursor.execute("PRAGMA table_info(submissions)")
     cols = [c[1] for c in cursor.fetchall()]
     if 'verified_by' not in cols:
@@ -79,6 +79,29 @@ def init_db():
             is_active INTEGER DEFAULT 1
         )
     ''')
+
+    # Candidates Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS candidates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            full_name TEXT,
+            party TEXT,
+            election_name TEXT,
+            created_at DATETIME
+        )
+    ''')
+
+    # Locations Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS locations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            state TEXT,
+            lga TEXT,
+            ward TEXT,
+            polling_unit TEXT,
+            pu_code TEXT
+        )
+    ''')
     
     # Seed default user if empty
     cursor.execute("SELECT COUNT(*) FROM users")
@@ -106,7 +129,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-# AUTO COLLATION SUBMISSION (Gemini AI Flow)
+# GEMINI AUTO COLLATION
 def save_and_auto_collate_submission(data, party_votes, rejected_votes):
     conn = get_db()
     cursor = conn.cursor()
@@ -141,7 +164,7 @@ def save_and_auto_collate_submission(data, party_votes, rejected_votes):
     conn.close()
     return get_live_collation(data.get('election_id', 'ijebu_east_sha'))
 
-# PENDING SUBMISSION (Manual Flow)
+# PENDING PHOTO SUBMISSION
 def save_pending_photo_submission(data):
     conn = get_db()
     cursor = conn.cursor()
@@ -263,29 +286,21 @@ def get_live_collation(election_id=None):
         "standings": standings
     }
 
-# SYSTEM RESET TO DEFAULT FACTORY STATE
+# SYSTEM RESET
 def reset_system_to_default():
     conn = get_db()
     cursor = conn.cursor()
-    
-    # 1. Wipe all submissions
     cursor.execute("DELETE FROM submissions")
     cursor.execute("DELETE FROM sqlite_sequence WHERE name='submissions'")
-    
-    # 2. Reset users to primary Super Admin
     cursor.execute("DELETE FROM users")
     cursor.execute("INSERT INTO users (full_name, username, role, email, created_at) VALUES (?, ?, ?, ?, ?)",
                    ("Oladele Rotimi Williams", "Oladele Rotimi Williams", "Super Admin", "admin@electionwatch.ng", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-    
-    # 3. Reset elections
     cursor.execute("DELETE FROM elections")
     cursor.execute("INSERT INTO elections (name, type, constituency, registered_voters) VALUES (?, ?, ?, ?)",
                    ("Ijebu East State House of Assembly Election 2027", "State House of Assembly", "Ijebu East", 50000))
-    
     conn.commit()
     conn.close()
     
-    # 4. Clear uploaded images directory
     upload_dir = 'static/uploads'
     if os.path.exists(upload_dir):
         for f in os.listdir(upload_dir):
@@ -295,8 +310,7 @@ def reset_system_to_default():
                     os.remove(file_path)
                 except Exception:
                     pass
-                    
-    return {"success": True, "message": "⚡ System successfully reset to default factory state! All test data wiped."}
+    return {"success": True, "message": "⚡ System successfully reset to default factory state!"}
 
 # QUEUES & TABLES
 def get_pending_review_queue():
@@ -341,26 +355,11 @@ def get_ward_results(election_id='ijebu_east_sha'):
         results.append(item)
     return results
 
+# ALL ADMIN ENTITY GETTERS & CREATORS
 def get_all_users():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users ORDER BY id DESC")
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-def get_all_elections():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM elections ORDER BY id DESC")
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-def get_all_parties():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM parties ORDER BY id ASC")
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -378,6 +377,14 @@ def create_user(full_name, username, role, email):
         conn.close()
         return {"success": False, "error": str(e)}
 
+def get_all_elections():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM elections ORDER BY id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 def create_election(name, elect_type, constituency, registered_voters):
     conn = get_db()
     cursor = conn.cursor()
@@ -386,6 +393,14 @@ def create_election(name, elect_type, constituency, registered_voters):
     conn.commit()
     conn.close()
     return {"success": True, "message": f"Election '{name}' created successfully!"}
+
+def get_all_parties():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM parties ORDER BY id ASC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 def create_party(name, acronym, inec_code, is_active):
     conn = get_db()
@@ -399,3 +414,37 @@ def create_party(name, acronym, inec_code, is_active):
     except Exception as e:
         conn.close()
         return {"success": False, "error": str(e)}
+
+def get_all_candidates():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM candidates ORDER BY id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def create_candidate(full_name, party, election_name):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO candidates (full_name, party, election_name, created_at) VALUES (?, ?, ?, ?)",
+                   (full_name, party, election_name, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": f"Candidate '{full_name}' saved!"}
+
+def get_all_locations():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM locations ORDER BY id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def create_location(state, lga, ward, polling_unit, pu_code):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO locations (state, lga, ward, polling_unit, pu_code) VALUES (?, ?, ?, ?, ?)",
+                   (state, lga, ward, polling_unit, pu_code))
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": f"Location '{polling_unit} ({pu_code})' saved!"}
