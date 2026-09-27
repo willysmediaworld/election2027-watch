@@ -10,6 +10,7 @@ let currentUploadData = {
 let activeModalSubmissionId = null;
 let selectedPhotoFile = null;
 let isGuestUser = false;
+let globalParties = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     const loginForm = document.getElementById('loginForm');
@@ -100,17 +101,53 @@ function setGuestPermissions(isGuest) {
     }
 }
 
+// ADMIN MODALS CONTROL (PREFILL CANDIDATE DROPDOWNS DYNAMICALLY)
 function openAdminModal(type) {
     closeAdminModals();
     if (type === 'user') document.getElementById('adminUserModal')?.classList.add('active');
     if (type === 'election') document.getElementById('adminElectionModal')?.classList.add('active');
     if (type === 'party') document.getElementById('adminPartyModal')?.classList.add('active');
-    if (type === 'candidate') document.getElementById('adminCandidateModal')?.classList.add('active');
     if (type === 'location') document.getElementById('adminLocationModal')?.classList.add('active');
+    
+    if (type === 'candidate') {
+        populateCandidateDropdowns();
+        document.getElementById('adminCandidateModal')?.classList.add('active');
+    }
 }
 
 function closeAdminModals() {
     document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+}
+
+function populateCandidateDropdowns() {
+    // Populate Parties Dropdown
+    fetch('/api/admin/parties')
+    .then(res => res.json())
+    .then(parties => {
+        globalParties = parties;
+        const partySelect = document.getElementById('adminCandParty');
+        if (partySelect) {
+            let options = '<option value="">-- Select Party --</option>';
+            parties.forEach(p => {
+                options += `<option value="${p.acronym}">${p.acronym} - ${p.name}</option>`;
+            });
+            partySelect.innerHTML = options;
+        }
+    });
+
+    // Populate Elections Dropdown
+    fetch('/api/admin/elections')
+    .then(res => res.json())
+    .then(elections => {
+        const electSelect = document.getElementById('adminCandElection');
+        if (electSelect) {
+            let options = '<option value="">-- Select Election --</option>';
+            elections.forEach(e => {
+                options += `<option value="${e.name}">${e.name}</option>`;
+            });
+            electSelect.innerHTML = options;
+        }
+    });
 }
 
 function submitCreateUser() {
@@ -154,6 +191,7 @@ function submitCreateParty() {
         name: document.getElementById('adminPartyName')?.value || '',
         acronym: document.getElementById('adminPartyAcronym')?.value || '',
         inec_code: document.getElementById('adminPartyCode')?.value || '',
+        logo_url: document.getElementById('adminPartyLogo')?.value || '',
         is_active: document.getElementById('adminPartyActive')?.checked || true
     };
     fetch('/api/admin/parties', {
@@ -168,10 +206,18 @@ function submitCreateParty() {
 }
 
 function submitCreateCandidate() {
+    const partyVal = document.getElementById('adminCandParty')?.value;
+    const electVal = document.getElementById('adminCandElection')?.value;
+
+    if (!partyVal || !electVal) {
+        alert("Please select both Party and Election from the drop-down lists.");
+        return;
+    }
+
     const formData = new FormData();
     formData.append('full_name', document.getElementById('adminCandName')?.value || '');
-    formData.append('party', document.getElementById('adminCandParty')?.value || '');
-    formData.append('election_name', document.getElementById('adminCandElection')?.value || '');
+    formData.append('party', partyVal);
+    formData.append('election_name', electVal);
     
     const photoInput = document.getElementById('adminCandPhoto');
     if (photoInput && photoInput.files[0]) {
@@ -221,12 +267,13 @@ function loadAdminData(type) {
 
         let html = `<h4 style="color:#0c235c; margin-bottom:8px;">Registered ${type.toUpperCase()} (${data.length})</h4><div class="candidate-list">`;
         data.forEach(item => {
+            const imgUrl = item.photo_url || item.logo_url || '';
             html += `
             <div class="candidate-card" style="padding:10px; display:flex; align-items:center; gap:12px;">
-                ${item.photo_url ? `<img src="${item.photo_url}" style="width:45px; height:45px; border-radius:50%; object-fit:cover;">` : ''}
+                ${imgUrl ? `<img src="${imgUrl}" style="width:40px; height:48px; border-radius:6px; object-fit:contain; border:1px solid #ddd;">` : ''}
                 <div>
                     <strong>${item.full_name || item.name || item.acronym || item.polling_unit}</strong>
-                    <p><small>${item.role || item.type || item.party || item.ward || ''} ${item.email ? '· ' + item.email : ''} ${item.pu_code ? '(' + item.pu_code + ')' : ''}</small></p>
+                    <p><small>${item.acronym ? 'INEC Code: ' + item.inec_code : (item.party || item.role || item.ward || '')} ${item.email ? '· ' + item.email : ''} ${item.pu_code ? '(' + item.pu_code + ')' : ''}</small></p>
                 </div>
             </div>`;
         });
@@ -445,8 +492,22 @@ function openReviewModal(id, imageUrl, ward, pu, puCode, electionName) {
             Ward: <strong>${ward}</strong> | PU: <strong>${pu} (${puCode})</strong>
         `;
     }
-    
-    if (reviewModal) reviewModal.classList.add('active');
+
+    // Dynamic party vote inputs generation for all 19 parties
+    fetch('/api/admin/parties')
+    .then(res => res.json())
+    .then(parties => {
+        const inputsContainer = document.getElementById('reviewPartyInputs');
+        if (inputsContainer) {
+            let html = '';
+            parties.forEach(p => {
+                html += `<div class="input-row"><label>${p.name} (${p.acronym})</label><input type="number" id="review_${p.acronym}" value="0"></div>`;
+            });
+            html += `<div class="input-row"><label>Rejected Votes</label><input type="number" id="review_Rejected" value="0"></div>`;
+            inputsContainer.innerHTML = html;
+        }
+        if (reviewModal) reviewModal.classList.add('active');
+    });
 }
 
 function closeReviewModal() {
@@ -454,41 +515,38 @@ function closeReviewModal() {
 }
 
 function submitManualCollation(status) {
-    const partyVotes = {
-        "A": parseInt(document.getElementById('review_A')?.value || 0),
-        "AA": parseInt(document.getElementById('review_AA')?.value || 0),
-        "ADP": parseInt(document.getElementById('review_ADP')?.value || 0),
-        "APC": parseInt(document.getElementById('review_APC')?.value || 0),
-        "APGA": parseInt(document.getElementById('review_APGA')?.value || 0),
-        "LP": parseInt(document.getElementById('review_LP')?.value || 0),
-        "NNPP": parseInt(document.getElementById('review_NNPP')?.value || 0),
-        "PDP": parseInt(document.getElementById('review_PDP')?.value || 0),
-        "SDP": parseInt(document.getElementById('review_SDP')?.value || 0),
-        "YPP": parseInt(document.getElementById('review_YPP')?.value || 0)
-    };
-    const rejectedVotes = parseInt(document.getElementById('review_Rejected')?.value || 0);
-    const notes = document.getElementById('reviewNotes')?.value || '';
-
-    fetch('/api/admin-verify-collate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            submission_id: activeModalSubmissionId,
-            party_votes: partyVotes,
-            rejected_votes: rejectedVotes,
-            status: status,
-            notes: notes,
-            verified_by: document.getElementById('username')?.value || 'Super Admin'
-        })
-    })
+    const partyVotes = {};
+    fetch('/api/admin/parties')
     .then(res => res.json())
-    .then(res => {
-        alert(`✓ Submission #${activeModalSubmissionId} marked as ${status} and collated!`);
-        closeReviewModal();
-        loadReviewQueue();
-        loadAuditLog();
-        loadLiveResults();
-        loadWardTable();
+    .then(parties => {
+        parties.forEach(p => {
+            partyVotes[p.acronym] = parseInt(document.getElementById(`review_${p.acronym}`)?.value || 0);
+        });
+
+        const rejectedVotes = parseInt(document.getElementById('review_Rejected')?.value || 0);
+        const notes = document.getElementById('reviewNotes')?.value || '';
+
+        fetch('/api/admin-verify-collate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                submission_id: activeModalSubmissionId,
+                party_votes: partyVotes,
+                rejected_votes: rejectedVotes,
+                status: status,
+                notes: notes,
+                verified_by: document.getElementById('username')?.value || 'Super Admin'
+            })
+        })
+        .then(res => res.json())
+        .then(res => {
+            alert(`✓ Submission #${activeModalSubmissionId} marked as ${status} and collated!`);
+            closeReviewModal();
+            loadReviewQueue();
+            loadAuditLog();
+            loadLiveResults();
+            loadWardTable();
+        });
     });
 }
 
@@ -513,6 +571,8 @@ function renderLiveUI(data) {
     if (avatarBox) {
         if (data.leader?.photo) {
             avatarBox.innerHTML = `<img src="${data.leader.photo}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+        } else if (data.leader?.party_logo) {
+            avatarBox.innerHTML = `<img src="${data.leader.party_logo}" style="width:80%; height:80%; border-radius:50%; object-fit:contain;">`;
         } else {
             avatarBox.innerText = '👤';
         }
@@ -540,7 +600,7 @@ function renderLiveUI(data) {
             <div class="candidate-card">
                 <div class="candidate-info">
                     <div style="display:flex; align-items:center; gap:12px;">
-                        ${item.photo ? `<img src="${item.photo}" style="width:48px; height:48px; border-radius:50%; object-fit:cover; border:2px solid #0c235c;">` : `<div style="width:48px; height:48px; border-radius:50%; background:#e2e8f0; display:flex; justify-content:center; align-items:center; font-size:22px;">👤</div>`}
+                        ${item.photo ? `<img src="${item.photo}" style="width:48px; height:48px; border-radius:50%; object-fit:cover; border:2px solid #0c235c;">` : (item.party_logo ? `<img src="${item.party_logo}" style="width:45px; height:45px; object-fit:contain; border-radius:6px;">` : `<div style="width:48px; height:48px; border-radius:50%; background:#e2e8f0; display:flex; justify-content:center; align-items:center; font-size:22px;">👤</div>`)}
                         <div>
                             <h4>${item.candidate}</h4>
                             <p style="font-weight:700; color:#0c235c;">${item.party}</p>
