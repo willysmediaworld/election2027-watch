@@ -9,7 +9,6 @@
 </head>
 <body>
 
-    <!-- AUTHENTICATION PAGE (CLEARED PREFILLED DATA + GUEST ACCESS) -->
     <div id="authPage" class="page active">
         <div class="auth-container">
             <div class="logo-box">
@@ -41,10 +40,15 @@
                 <p style="font-size:12px; color:#64748b; margin-bottom:8px;">Public Visitor / Citizen Access:</p>
                 <button type="button" class="btn-submit" style="background:#2563eb;" onclick="openGuestViewer()">🌐 View Public Live Results (Guest Access)</button>
             </div>
+
+            <footer class="app-footer" style="margin-top:25px;">
+                <p><strong>2027 ELECTION WATCH</strong></p>
+                <p style="color:#2563eb; font-weight:700;">Sponsored by PAB Media TEAM, Ijebu East LGA</p>
+                <p>Designed by Willys Media World · 09018363715</p>
+            </footer>
         </div>
     </div>
 
-    <!-- MAIN DASHBOARD -->
     <div id="dashboardPage" class="page">
         <header class="app-header">
             <h1>2027 ELECTION WATCH</h1>
@@ -61,10 +65,9 @@
 
         <main class="dashboard-content">
 
-            <!-- TAB 1: LIVE DASHBOARD -->
             <section id="tab-live" class="tab-content active">
                 <div class="section-heading"><span class="heading-icon">📊</span><h2>Verified Collation</h2></div>
-                <div class="info-box"><p>Live totals dynamically reflect verified manual collations and Gemini AI auto-collated results.</p></div>
+                <div class="info-box"><p>Live totals dynamically reflect verified polling unit collations.</p></div>
 
                 <div class="form-group">
                     <label>Election Select</label>
@@ -75,8 +78,9 @@
 
                 <div class="leader-card">
                     <h4>CURRENT VERIFIED LEADER</h4>
-                    <div class="avatar-circle">👤</div>
+                    <div id="leaderAvatar" class="avatar-circle">👤</div>
                     <h3 id="leaderTitle" class="leader-title">Awaiting Verified Results</h3>
+                    <p id="leaderParty" style="font-size:13px; color:#93c5fd; font-weight:700; margin-top:2px;"></p>
                     <div class="divider">—</div>
                     <div id="leaderVotes" class="big-stat">0</div>
                     <div id="leaderPct" class="percentage-stat">0%</div>
@@ -108,7 +112,6 @@
                 </div>
             </section>
 
-            <!-- TAB 2: RESULTS VIEW -->
             <section id="tab-results" class="tab-content">
                 <div class="section-heading"><span class="heading-icon">📋</span><h2>Ward / PU Results</h2></div>
                 <div class="info-box"><p>Collated polling unit results broken down by Ward.</p></div>
@@ -132,16 +135,14 @@
                 </div>
             </section>
 
-            <!-- TAB 3: UPLOAD PAGE -->
             <section id="tab-upload" class="tab-content">
                 <div class="section-heading"><span class="heading-icon">📥</span><h2>Submit Result</h2></div>
-                <div class="info-box"><p>Upload a clear photo of Form EC8A. Choose Gemini AI for instant auto-collation or route for manual review.</p></div>
+                <div class="info-box"><p>Upload a clear photograph of Form EC8A to route it directly to the verification review queue.</p></div>
 
                 <div class="dots-indicator">
                     <span class="dot active"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
                 </div>
 
-                <!-- Steps 1-4 -->
                 <div id="uploadStep1" class="wizard-step active">
                     <h3 class="step-title">1. Select Election Type</h3>
                     <div class="btn-stack">
@@ -180,7 +181,6 @@
                     </div>
                 </div>
 
-                <!-- Step 5 -->
                 <div id="uploadStep5" class="wizard-step">
                     <h3 class="step-title">5. Result Sheet Evidence</h3>
                     <div class="summary-box">
@@ -201,7 +201,6 @@
                     </div>
 
                     <div id="uploadActionButtons" style="display:none; flex-direction:column; gap:10px; margin-bottom:15px;">
-                        <button class="btn-submit" style="background:#16a34a;" onclick="submitAutoCollateWithAI()">🤖 Auto-Collate with Gemini AI</button>
                         <button class="btn-submit" style="background:#0c235c;" onclick="submitPhotoOnly()">📤 Route to Manual Review Queue</button>
                     </div>
 
@@ -209,7 +208,6 @@
                 </div>
             </section>
 
-            <!-- TAB 4: REVIEW & AUDIT -->
             <section id="tab-review" class="tab-content">
                 <div class="section-heading"><span class="heading-icon">🔍</span><h2>Verification & Audit</h2></div>
                 
@@ -231,7 +229,6 @@
                 </div>
             </section>
 
-            <!-- TAB 5: ADMINISTRATION (ALL 5 WORKING MODALS) -->
             <section id="tab-admin" class="tab-content">
                 <div class="section-heading"><span class="heading-icon">⚙️</span><h2>Administration</h2></div>
                 
@@ -245,7 +242,6 @@
 
                 <div id="adminDataDisplay" style="margin-top:15px;"></div>
 
-                <!-- SUPER ADMIN DANGER ZONE -->
                 <div class="info-box" style="background:#fef2f2; border-color:#fca5a5; color:#991b1b; margin-top:20px;">
                     <h4 style="font-weight:800; margin-bottom:5px;">🚨 Super Admin Danger Zone</h4>
                     <p style="font-size:12px; margin-bottom:12px;">Resetting wipes all uploaded result sheets, clears live tallies to 0, and restores default factory settings.</p>
@@ -254,22 +250,21 @@
             </section>
 
             <footer class="app-footer">
-                <p>2027 ELECTION WATCH</p>
+                <p><strong>2027 ELECTION WATCH</strong></p>
+                <p style="color:#2563eb; font-weight:700;">Sponsored by PAB Media TEAM, Ijebu East LGA</p>
                 <p>Designed by Willys Media World · 09018363715</p>
             </footer>
         </main>
 
-        <!-- Bottom Navigation -->
         <nav class="bottom-nav">
             <button class="nav-item active" data-tab="live"><span class="nav-label">Live</span></button>
             <button class="nav-item" data-tab="results"><span class="nav-label">Results</span></button>
             <button class="nav-item" data-tab="upload" id="navUploadBtn"><span class="nav-label">Upload</span></button>
-            <button class="nav-item" data-tab="review"><span class="nav-label">Review</span></button>
+            <button class="nav-item" data-tab="review" id="navReviewBtn"><span class="nav-label">Review</span></button>
             <button class="nav-item" data-tab="admin" id="navAdminBtn"><span class="nav-label">Admin</span></button>
         </nav>
     </div>
 
-    <!-- ADMIN MODAL 1: CREATE USER -->
     <div id="adminUserModal" class="modal-overlay">
         <div class="modal-card">
             <h3 style="color:#0c235c; margin-bottom:12px;">👤 Create User</h3>
@@ -290,7 +285,6 @@
         </div>
     </div>
 
-    <!-- ADMIN MODAL 2: CREATE ELECTION -->
     <div id="adminElectionModal" class="modal-overlay">
         <div class="modal-card">
             <h3 style="color:#0c235c; margin-bottom:12px;">📦 Create Election</h3>
@@ -313,7 +307,6 @@
         </div>
     </div>
 
-    <!-- ADMIN MODAL 3: CREATE PARTY -->
     <div id="adminPartyModal" class="modal-overlay">
         <div class="modal-card">
             <h3 style="color:#0c235c; margin-bottom:12px;">🏛️ Create Party</h3>
@@ -329,19 +322,18 @@
         </div>
     </div>
 
-    <!-- ADMIN MODAL 4: CREATE CANDIDATE -->
     <div id="adminCandidateModal" class="modal-overlay">
         <div class="modal-card">
             <h3 style="color:#0c235c; margin-bottom:12px;">👥 Add Candidate</h3>
-            <div class="input-group"><label>Candidate Full Name</label><input type="text" id="adminCandName" placeholder="e.g. Hon. Adeleke Williams"></div>
+            <div class="input-group"><label>Candidate Full Name</label><input type="text" id="adminCandName" placeholder="e.g. Hon. Foluso Oladele"></div>
             <div class="input-group"><label>Party Acronym</label><input type="text" id="adminCandParty" placeholder="e.g. APC"></div>
             <div class="input-group"><label>Election</label><input type="text" id="adminCandElection" value="Ijebu East State House of Assembly Election 2027"></div>
+            <div class="input-group"><label>Aspirant Picture</label><input type="file" id="adminCandPhoto" accept="image/*"></div>
             <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateCandidate()">Save Candidate</button>
             <button class="btn-secondary" onclick="closeAdminModals()">Cancel</button>
         </div>
     </div>
 
-    <!-- ADMIN MODAL 5: CREATE LOCATION -->
     <div id="adminLocationModal" class="modal-overlay">
         <div class="modal-card">
             <h3 style="color:#0c235c; margin-bottom:12px;">🌍 Add Location / PU</h3>
@@ -355,7 +347,6 @@
         </div>
     </div>
 
-    <!-- MANUAL COLLATION REVIEW MODAL -->
     <div id="reviewModal" class="modal-overlay">
         <div class="modal-card" style="max-width:450px; max-height:90vh; overflow-y:auto;">
             <h3 style="color:#0c235c; margin-bottom:10px;">🔍 Manual Result Collation</h3>
