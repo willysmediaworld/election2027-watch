@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2027 Election Watch</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <!-- AUTHENTICATION -->
+    <div id="authPage" class="page active">
+        <div class="auth-container">
+            <div class="logo-box">
+                <svg width="100" height="100" viewBox="0 0 200 200" fill="none">
+                    <polygon points="90,30 130,10 120,60 80,80" fill="#E5E7EB"/>
+                    <polygon points="100,60 160,90 100,120 40,90" fill="#2563EB"/>
+                    <polygon points="90,85 115,97 110,100 85,88" fill="#1D4ED8"/>
+                    <circle cx="95" cy="73" r="3" fill="#FDE047"/>
+                    <polygon points="40,90 100,120 100,180 40,150" fill="#1D4ED8"/>
+                    <polygon points="100,120 160,90 160,150 100,180" fill="#1E40AF"/>
+                </svg>
+            </div>
+            <h1 class="auth-title">2027 ELECTION WATCH</h1>
+            <p class="auth-subtitle">Real-Time Collation & Analytics System</p>
+
+            <form id="loginForm" class="auth-form">
+                <div class="input-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" value="Oladele Rotimi Williams" required>
+                </div>
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" value="••••••••" required>
+                </div>
+                <button type="submit" class="btn-submit">🔐 Sign In</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD -->
+    <div id="dashboardPage" class="page">
+        <header class="app-header">
+            <h1>2027 ELECTION WATCH</h1>
+            <p>Verified Result Collation & Analytics</p>
+        </header>
+
+        <div class="user-bar">
+            <div class="user-info">
+                <span class="user-icon">👤</span>
+                <span id="userDisplayName">Oladele Rotimi Williams · SuperAdmin</span>
+            </div>
+            <button id="logoutBtn" class="btn-logout">Logout</button>
+        </div>
+
+        <main class="dashboard-content">
+
+            <!-- TAB 1: LIVE DASHBOARD -->
+            <section id="tab-live" class="tab-content active">
+                <div class="section-heading"><span class="heading-icon">📊</span><h2>Verified Collation</h2></div>
+                <div class="info-box"><p>Live totals dynamically reflect verified manual collations and Gemini AI auto-collated results.</p></div>
+
+                <div class="form-group">
+                    <label>Election Select</label>
+                    <select id="liveElectionSelect" onchange="loadLiveResults()">
+                        <option value="ijebu_east_sha">Ijebu East State House of Assembly Election 2027</option>
+                    </select>
+                </div>
+
+                <div class="leader-card">
+                    <h4>CURRENT VERIFIED LEADER</h4>
+                    <div class="avatar-circle">👤</div>
+                    <h3 id="leaderTitle" class="leader-title">Awaiting Verified Results</h3>
+                    <div class="divider">—</div>
+                    <div id="leaderVotes" class="big-stat">0</div>
+                    <div id="leaderPct" class="percentage-stat">0%</div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card"><span id="statReg" class="stat-value">50,000</span><span class="stat-label">REGISTERED</span></div>
+                    <div class="stat-card"><span id="statCast" class="stat-value">0</span><span class="stat-label">VOTES CAST</span></div>
+                    <div class="stat-card"><span id="statTurnout" class="stat-value">0.0%</span><span class="stat-label">TURNOUT</span></div>
+                    <div class="stat-card"><span id="statValid" class="stat-value">0</span><span class="stat-label">VALID</span></div>
+                    <div class="stat-card"><span id="statRejected" class="stat-value">0</span><span class="stat-label">REJECTED</span></div>
+                    <div class="stat-card"><span id="statPUs" class="stat-value">0/154</span><span class="stat-label">PUS VERIFIED</span></div>
+                </div>
+
+                <div class="progress-section">
+                    <div class="progress-header">
+                        <span>Polling Units Verified</span>
+                        <span id="progressPctText" class="progress-percent">0.0%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div id="progressFill" class="progress-fill" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <div class="standings-section">
+                    <div class="section-heading"><span class="heading-icon">🏛️</span><h2>Verified Standings</h2></div>
+                    <div id="standingsContainer" class="candidate-list"></div>
+                    <button class="btn-refresh" onclick="loadLiveResults()">↻ Refresh Live Collation</button>
+                </div>
+            </section>
+
+            <!-- TAB 2: RESULTS VIEW -->
+            <section id="tab-results" class="tab-content">
+                <div class="section-heading"><span class="heading-icon">📋</span><h2>Ward / PU Results</h2></div>
+                <div class="info-box"><p>Collated polling unit results broken down by Ward.</p></div>
+                <div class="table-responsive">
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>Ward</th>
+                                <th>Polling Unit</th>
+                                <th>APC</th>
+                                <th>PDP</th>
+                                <th>LP</th>
+                                <th>NNPP</th>
+                                <th>Valid</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsTableBody">
+                            <tr><td colspan="7" style="text-align:center;">No collated results yet.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- TAB 3: UPLOAD PAGE -->
+            <section id="tab-upload" class="tab-content">
+                <div class="section-heading"><span class="heading-icon">📥</span><h2>Submit Result</h2></div>
+                <div class="info-box"><p>Upload a clear photo of Form EC8A. Choose Gemini AI for instant auto-collation or route for manual review.</p></div>
+
+                <div class="dots-indicator">
+                    <span class="dot active"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                </div>
+
+                <!-- Steps 1-4 -->
+                <div id="uploadStep1" class="wizard-step active">
+                    <h3 class="step-title">1. Select Election Type</h3>
+                    <div class="btn-stack">
+                        <button class="btn-select-option" onclick="selectType('Presidential')">Presidential</button>
+                        <button class="btn-select-option" onclick="selectType('Governorship')">Governorship</button>
+                        <button class="btn-select-option" onclick="selectType('State House of Assembly')">State House of Assembly</button>
+                    </div>
+                </div>
+
+                <div id="uploadStep2" class="wizard-step">
+                    <h3 class="step-title">2. Select Election</h3>
+                    <div class="btn-stack">
+                        <button class="btn-select-option" onclick="selectElection('Ijebu East State House of Assembly Election 2027')">Ijebu East State House of Assembly Election 2027</button>
+                        <button class="btn-secondary" onclick="goToUploadStep(1)">← Back</button>
+                    </div>
+                </div>
+
+                <div id="uploadStep3" class="wizard-step">
+                    <h3 class="step-title">3. Select Ward</h3>
+                    <div class="btn-stack">
+                        <button class="btn-select-option" onclick="selectWard('Ijebu Mushin I')">Ijebu Mushin I</button>
+                        <button class="btn-select-option" onclick="selectWard('Ijebu Mushin II')">Ijebu Mushin II</button>
+                        <button class="btn-select-option" onclick="selectWard('Ijebu Ife I')">Ijebu Ife I</button>
+                        <button class="btn-select-option" onclick="selectWard('Itele')">Itele</button>
+                        <button class="btn-secondary" onclick="goToUploadStep(2)">← Back</button>
+                    </div>
+                </div>
+
+                <div id="uploadStep4" class="wizard-step">
+                    <h3 class="step-title">4. Select Polling Unit</h3>
+                    <div class="btn-stack">
+                        <button class="btn-select-option" onclick="selectPU('PU 001', '01-001')">PU 001 (01-001)</button>
+                        <button class="btn-select-option" onclick="selectPU('PU 002', '01-002')">PU 002 (01-002)</button>
+                        <button class="btn-select-option" onclick="selectPU('PU 003', '01-003')">PU 003 (01-003)</button>
+                        <button class="btn-secondary" onclick="goToUploadStep(3)">← Back</button>
+                    </div>
+                </div>
+
+                <!-- Step 5: DUAL EXECUTION FLOW -->
+                <div id="uploadStep5" class="wizard-step">
+                    <h3 class="step-title">5. Result Sheet Evidence</h3>
+                    <div class="summary-box">
+                        <h3 id="summaryElection">Ijebu East State House of Assembly Election 2027</h3>
+                        <p id="summaryWardPU">Ward: Ijebu Mushin I | Polling Unit: PU 001 (01-001)</p>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <label class="btn-action" style="display:block; text-align:center; cursor:pointer; background:#2563eb;">
+                            📁 Choose Photograph
+                            <input type="file" id="ec8aPhoto" accept="image/*" style="display:none;" onchange="previewUploadImage(this)">
+                        </label>
+                    </div>
+
+                    <div id="imagePreviewBox" style="display:none; margin-bottom:20px; text-align:center;">
+                        <p style="font-size:12px; font-weight:700; color:#0c235c; margin-bottom:5px;">Attached Result Sheet Preview:</p>
+                        <img id="uploadPreviewImg" src="" style="width:100%; max-height:280px; object-fit:contain; border-radius:10px; border:2px solid #0c235c;">
+                    </div>
+
+                    <!-- ACTION BUTTONS -->
+                    <div id="uploadActionButtons" style="display:none; flex-direction:column; gap:10px; margin-bottom:15px;">
+                        <button class="btn-submit" style="background:#16a34a;" onclick="submitAutoCollateWithAI()">🤖 Auto-Collate with Gemini AI</button>
+                        <button class="btn-submit" style="background:#0c235c;" onclick="submitPhotoOnly()">📤 Route to Manual Review Queue</button>
+                    </div>
+
+                    <button class="btn-secondary" onclick="goToUploadStep(4)">← Back</button>
+                </div>
+            </section>
+
+            <!-- TAB 4: REVIEW & AUDIT -->
+            <section id="tab-review" class="tab-content">
+                <div class="section-heading"><span class="heading-icon">🔍</span><h2>Verification & Audit</h2></div>
+                
+                <div style="display:flex; gap:10px; margin-bottom:15px;">
+                    <button id="btnViewPending" class="btn-select-option" style="flex:1; padding:10px; font-size:13px;" onclick="switchReviewSubTab('pending')">📌 Pending Verification</button>
+                    <button id="btnViewAudit" class="btn-secondary" style="flex:1; padding:10px; font-size:13px;" onclick="switchReviewSubTab('audit')">📜 Verified Audit Log</button>
+                </div>
+
+                <div id="subTabPending">
+                    <div class="info-box"><p>Check the uploaded Form EC8A photograph and manually collate party figures.</p></div>
+                    <div id="reviewQueueList"></div>
+                </div>
+
+                <div id="subTabAudit" style="display:none;">
+                    <div class="info-box" style="background:#dcfce7; border-color:#86efac; color:#166534;">
+                        <p><strong>Official Audit Archive:</strong> Locked and verified polling unit result sheets with auditor signatures.</p>
+                    </div>
+                    <div id="auditLogList"></div>
+                </div>
+            </section>
+
+            <!-- TAB 5: ADMINISTRATION & SYSTEM RESET -->
+            <section id="tab-admin" class="tab-content">
+                <div class="section-heading"><span class="heading-icon">⚙️</span><h2>Administration</h2></div>
+                
+                <div class="admin-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:15px;">
+                    <button class="btn-select-option" onclick="openAdminModal('user')">👤 Users</button>
+                    <button class="btn-select-option" onclick="openAdminModal('election')">📦 Elections</button>
+                    <button class="btn-select-option" onclick="openAdminModal('party')">🏛️ Parties</button>
+                    <button class="btn-select-option" onclick="openAdminModal('candidate')">👥 Candidates</button>
+                </div>
+                <button class="btn-select-option" style="width:100%; margin-bottom:15px;" onclick="openAdminModal('location')">🌍 Locations</button>
+
+                <!-- SUPER ADMIN DANGER ZONE -->
+                <div class="info-box" style="background:#fef2f2; border-color:#fca5a5; color:#991b1b; margin-top:20px;">
+                    <h4 style="font-weight:800; margin-bottom:5px;">🚨 Super Admin Danger Zone</h4>
+                    <p style="font-size:12px; margin-bottom:12px;">Resetting wipes all uploaded result sheets, clears live tallies to 0, and restores default factory settings.</p>
+                    <button class="btn-submit" style="background:#dc2626;" onclick="triggerSystemReset()">⚡ Reset System to Default</button>
+                </div>
+
+                <div id="adminDataDisplay" style="margin-top:15px;"></div>
+            </section>
+
+            <footer class="app-footer">
+                <p>2027 ELECTION WATCH</p>
+                <p>Designed by Willys Media World · 09018363715</p>
+            </footer>
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-tab="live"><span class="nav-label">Live</span></button>
+            <button class="nav-item" data-tab="results"><span class="nav-label">Results</span></button>
+            <button class="nav-item" data-tab="upload"><span class="nav-label">Upload</span></button>
+            <button class="nav-item" data-tab="review"><span class="nav-label">Review</span></button>
+            <button class="nav-item" data-tab="admin"><span class="nav-label">Admin</span></button>
+        </nav>
+    </div>
+
+    <!-- MODAL: MANUAL COLLATION -->
+    <div id="reviewModal" class="modal-overlay">
+        <div class="modal-card" style="max-width:450px; max-height:90vh; overflow-y:auto;">
+            <h3 style="color:#0c235c; margin-bottom:10px;">🔍 Manual Result Collation</h3>
+            
+            <a id="modalImageLink" href="#" target="_blank">
+                <img id="modalImage" src="" style="width:100%; height:220px; object-fit:contain; background:#1e293b; border-radius:8px; margin-bottom:8px;">
+            </a>
+            <small style="display:block; text-align:center; color:#2563eb; margin-bottom:12px;">🔍 Tap image above to open full screen</small>
+            
+            <div id="modalDetails" style="font-size:13px; font-weight:600; margin-bottom:12px; background:#f1f5f9; padding:10px; border-radius:8px;"></div>
+
+            <h4 style="color:#0c235c; margin-bottom:8px; border-bottom:2px solid #e2e8f0; padding-bottom:4px;">Verify / Collate Party Votes</h4>
+            <div id="reviewPartyInputs">
+                <div class="input-row"><label>Accord (A)</label><input type="number" id="review_A" value="0"></div>
+                <div class="input-row"><label>Action Alliance (AA)</label><input type="number" id="review_AA" value="0"></div>
+                <div class="input-row"><label>Action Democratic Party (ADP)</label><input type="number" id="review_ADP" value="0"></div>
+                <div class="input-row"><label>All Progressives Congress (APC)</label><input type="number" id="review_APC" value="0"></div>
+                <div class="input-row"><label>All Progressives Grand Alliance (APGA)</label><input type="number" id="review_APGA" value="0"></div>
+                <div class="input-row"><label>Labour Party (LP)</label><input type="number" id="review_LP" value="0"></div>
+                <div class="input-row"><label>New Nigeria Peoples Party (NNPP)</label><input type="number" id="review_NNPP" value="0"></div>
+                <div class="input-row"><label>Peoples Democratic Party (PDP)</label><input type="number" id="review_PDP" value="0"></div>
+                <div class="input-row"><label>Social Democratic Party (SDP)</label><input type="number" id="review_SDP" value="0"></div>
+                <div class="input-row"><label>Young Progressive Party (YPP)</label><input type="number" id="review_YPP" value="0"></div>
+                <div class="input-row"><label>Rejected Votes</label><input type="number" id="review_Rejected" value="0"></div>
+            </div>
+
+            <textarea id="reviewNotes" placeholder="Notes or rejection reason..." style="width:100%; height:45px; padding:8px; border-radius:6px; border:1px solid #ccc; margin-top:10px;"></textarea>
+            
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button class="btn-submit" style="background:#16a34a; flex:1;" onclick="submitManualCollation('ACCEPTED')">✓ Accept & Collate</button>
+                <button class="btn-submit" style="background:#dc2626; flex:1;" onclick="submitManualCollation('REJECTED')">✕ Reject</button>
+            </div>
+            <button class="btn-secondary" style="margin-top:10px;" onclick="closeReviewModal()">Close</button>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
