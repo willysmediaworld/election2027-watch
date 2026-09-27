@@ -9,6 +9,7 @@ let currentUploadData = {
 
 let activeModalSubmissionId = null;
 let selectedPhotoFile = null;
+let isGuestUser = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     const loginForm = document.getElementById('loginForm');
@@ -21,10 +22,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (loginForm) {
         loginForm.addEventListener('submit', (e) => {
             e.preventDefault();
-            const username = document.getElementById('username').value;
-            if (username && document.getElementById('userDisplayName')) {
+            const username = document.getElementById('username')?.value || 'Admin User';
+            if (document.getElementById('userDisplayName')) {
                 document.getElementById('userDisplayName').innerText = `${username} · SuperAdmin`;
             }
+            isGuestUser = false;
+            setGuestPermissions(false);
+
             authPage.classList.remove('active');
             dashboardPage.classList.add('active');
             window.scrollTo(0, 0);
@@ -64,7 +68,166 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// SUPER ADMIN RESET SYSTEM CONTROL
+// PUBLIC GUEST VIEWER MODE
+function openGuestViewer() {
+    isGuestUser = true;
+    if (document.getElementById('userDisplayName')) {
+        document.getElementById('userDisplayName').innerText = "Guest Visitor · Read-Only Access";
+    }
+    
+    setGuestPermissions(true);
+
+    document.getElementById('authPage').classList.remove('active');
+    document.getElementById('dashboardPage').classList.add('active');
+    
+    const liveNav = document.querySelector('.nav-item[data-tab="live"]');
+    if (liveNav) liveNav.click();
+    loadLiveResults();
+}
+
+function setGuestPermissions(isGuest) {
+    const navUpload = document.getElementById('navUploadBtn');
+    const navAdmin = document.getElementById('navAdminBtn');
+
+    if (isGuest) {
+        if (navUpload) navUpload.style.display = 'none';
+        if (navAdmin) navAdmin.style.display = 'none';
+    } else {
+        if (navUpload) navUpload.style.display = 'flex';
+        if (navAdmin) navAdmin.style.display = 'flex';
+    }
+}
+
+// ADMIN MODALS CONTROL (ALL 5 FUNCTIONAL)
+function openAdminModal(type) {
+    closeAdminModals();
+    if (type === 'user') document.getElementById('adminUserModal')?.classList.add('active');
+    if (type === 'election') document.getElementById('adminElectionModal')?.classList.add('active');
+    if (type === 'party') document.getElementById('adminPartyModal')?.classList.add('active');
+    if (type === 'candidate') document.getElementById('adminCandidateModal')?.classList.add('active');
+    if (type === 'location') document.getElementById('adminLocationModal')?.classList.add('active');
+}
+
+function closeAdminModals() {
+    document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+}
+
+function submitCreateUser() {
+    const payload = {
+        full_name: document.getElementById('adminUserFullName')?.value || '',
+        username: document.getElementById('adminUsername')?.value || '',
+        role: document.getElementById('adminUserRole')?.value || 'Viewer',
+        email: document.getElementById('adminUserEmail')?.value || ''
+    };
+    fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    }).then(res => res.json()).then(res => {
+        alert(res.message || 'User created successfully!');
+        closeAdminModals();
+        loadAdminData('users');
+    });
+}
+
+function submitCreateElection() {
+    const payload = {
+        name: document.getElementById('adminElectName')?.value || '',
+        type: document.getElementById('adminElectType')?.value || 'State House of Assembly',
+        constituency: document.getElementById('adminElectConstituency')?.value || '',
+        registered_voters: document.getElementById('adminElectVoters')?.value || 50000
+    };
+    fetch('/api/admin/elections', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    }).then(res => res.json()).then(res => {
+        alert(res.message || 'Election created!');
+        closeAdminModals();
+        loadAdminData('elections');
+    });
+}
+
+function submitCreateParty() {
+    const payload = {
+        name: document.getElementById('adminPartyName')?.value || '',
+        acronym: document.getElementById('adminPartyAcronym')?.value || '',
+        inec_code: document.getElementById('adminPartyCode')?.value || '',
+        is_active: document.getElementById('adminPartyActive')?.checked || true
+    };
+    fetch('/api/admin/parties', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    }).then(res => res.json()).then(res => {
+        alert(res.message || 'Party saved!');
+        closeAdminModals();
+        loadAdminData('parties');
+    });
+}
+
+function submitCreateCandidate() {
+    const payload = {
+        full_name: document.getElementById('adminCandName')?.value || '',
+        party: document.getElementById('adminCandParty')?.value || '',
+        election_name: document.getElementById('adminCandElection')?.value || ''
+    };
+    fetch('/api/admin/candidates', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    }).then(res => res.json()).then(res => {
+        alert(res.message || 'Candidate saved!');
+        closeAdminModals();
+        loadAdminData('candidates');
+    });
+}
+
+function submitCreateLocation() {
+    const payload = {
+        state: document.getElementById('adminLocState')?.value || 'Ogun',
+        lga: document.getElementById('adminLocLGA')?.value || 'Ijebu East',
+        ward: document.getElementById('adminLocWard')?.value || '',
+        polling_unit: document.getElementById('adminLocPU')?.value || '',
+        pu_code: document.getElementById('adminLocCode')?.value || ''
+    };
+    fetch('/api/admin/locations', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    }).then(res => res.json()).then(res => {
+        alert(res.message || 'Location saved!');
+        closeAdminModals();
+        loadAdminData('locations');
+    });
+}
+
+function loadAdminData(type) {
+    fetch(`/api/admin/${type}`)
+    .then(res => res.json())
+    .then(data => {
+        const display = document.getElementById('adminDataDisplay');
+        if (!display) return;
+
+        if (!Array.isArray(data) || data.length === 0) {
+            display.innerHTML = `<p style="font-size:13px; color:#64748b; padding:10px;">No registered ${type} records found in database.</p>`;
+            return;
+        }
+
+        let html = `<h4 style="color:#0c235c; margin-bottom:8px;">Registered ${type.toUpperCase()} (${data.length})</h4><div class="candidate-list">`;
+        data.forEach(item => {
+            html += `
+            <div class="candidate-card" style="padding:10px;">
+                <strong>${item.full_name || item.name || item.acronym || item.polling_unit}</strong>
+                <p><small>${item.role || item.type || item.party || item.ward || ''} ${item.email ? '· ' + item.email : ''} ${item.pu_code ? '(' + item.pu_code + ')' : ''}</small></p>
+            </div>`;
+        });
+        html += '</div>';
+        display.innerHTML = html;
+    });
+}
+
+// SYSTEM RESET CONTROL
 function triggerSystemReset() {
     const confirmReset = confirm("⚡ DANGER ZONE: Are you sure you want to reset the entire system to default? This will wipe all test submissions, uploaded image files, and clear live tallies to 0!");
     
@@ -81,7 +244,7 @@ function triggerSystemReset() {
     }
 }
 
-// UPLOAD STEP WIZARD
+// UPLOAD WIZARD
 function goToUploadStep(stepNumber) {
     const steps = document.querySelectorAll('.wizard-step');
     const dots = document.querySelectorAll('.dots-indicator .dot');
@@ -123,7 +286,6 @@ function selectPU(puName, puCode) {
     goToUploadStep(5);
 }
 
-// PHOTO PREVIEW
 function previewUploadImage(input) {
     if (input.files && input.files[0]) {
         selectedPhotoFile = input.files[0];
@@ -143,7 +305,6 @@ function previewUploadImage(input) {
     }
 }
 
-// GEMINI AI AUTO-COLLATION SUBMISSION
 function submitAutoCollateWithAI() {
     if (!selectedPhotoFile) {
         alert("Please select a result sheet photograph first.");
@@ -157,7 +318,7 @@ function submitAutoCollateWithAI() {
     formData.append('ward', currentUploadData.ward);
     formData.append('polling_unit', currentUploadData.polling_unit);
     formData.append('pu_code', currentUploadData.pu_code);
-    formData.append('submitted_by', document.getElementById('username')?.value || 'Oladele Rotimi Williams');
+    formData.append('submitted_by', document.getElementById('username')?.value || 'Field Officer');
 
     alert("🤖 Sending EC8A Form to Gemini AI for scanning and auto-collation...");
 
@@ -168,7 +329,6 @@ function submitAutoCollateWithAI() {
     .then(res => res.json())
     .then(res => {
         alert(res.message || "✓ Auto-collation complete!");
-        
         selectedPhotoFile = null;
         if (document.getElementById('imagePreviewBox')) document.getElementById('imagePreviewBox').style.display = 'none';
         if (document.getElementById('uploadActionButtons')) document.getElementById('uploadActionButtons').style.display = 'none';
@@ -182,7 +342,6 @@ function submitAutoCollateWithAI() {
     });
 }
 
-// MANUAL ROUTING SUBMISSION
 function submitPhotoOnly() {
     if (!selectedPhotoFile) {
         alert("Please select a result sheet photograph first.");
@@ -196,7 +355,7 @@ function submitPhotoOnly() {
     formData.append('ward', currentUploadData.ward);
     formData.append('polling_unit', currentUploadData.polling_unit);
     formData.append('pu_code', currentUploadData.pu_code);
-    formData.append('submitted_by', document.getElementById('username')?.value || 'Oladele Rotimi Williams');
+    formData.append('submitted_by', document.getElementById('username')?.value || 'Field Officer');
 
     fetch('/api/upload-photo-result', {
         method: 'POST',
@@ -351,7 +510,7 @@ function submitManualCollation(status) {
             rejected_votes: rejectedVotes,
             status: status,
             notes: notes,
-            verified_by: document.getElementById('username')?.value || 'Oladele Rotimi Williams'
+            verified_by: document.getElementById('username')?.value || 'Super Admin'
         })
     })
     .then(res => res.json())
