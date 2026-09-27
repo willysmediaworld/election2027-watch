@@ -64,9 +64,15 @@ def init_db():
             name TEXT,
             acronym TEXT UNIQUE,
             inec_code TEXT,
+            logo_url TEXT DEFAULT '',
             is_active INTEGER DEFAULT 1
         )
     ''')
+    
+    cursor.execute("PRAGMA table_info(parties)")
+    p_cols = [c[1] for c in cursor.fetchall()]
+    if 'logo_url' not in p_cols:
+        cursor.execute("ALTER TABLE parties ADD COLUMN logo_url TEXT DEFAULT ''")
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS candidates (
@@ -80,8 +86,8 @@ def init_db():
     ''')
     
     cursor.execute("PRAGMA table_info(candidates)")
-    cols = [c[1] for c in cursor.fetchall()]
-    if 'photo_url' not in cols:
+    c_cols = [c[1] for c in cursor.fetchall()]
+    if 'photo_url' not in c_cols:
         cursor.execute("ALTER TABLE candidates ADD COLUMN photo_url TEXT DEFAULT ''")
 
     cursor.execute('''
@@ -95,27 +101,46 @@ def init_db():
         )
     ''')
     
+    # Seed default user if empty
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO users (full_name, username, role, email, created_at) VALUES (?, ?, ?, ?, ?)",
                        ("Oladele Rotimi Williams", "Oladele Rotimi Williams", "Super Admin", "admin@electionwatch.ng", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
-    cursor.execute("SELECT COUNT(*) FROM parties")
+    # Seed default election if empty
+    cursor.execute("SELECT COUNT(*) FROM elections")
     if cursor.fetchone()[0] == 0:
-        default_parties = [
-            ("Accord", "A", "001"),
-            ("Action Alliance", "AA", "002"),
-            ("Action Democratic Party", "ADP", "003"),
-            ("All Progressives Congress", "APC", "004"),
-            ("All Progressives Grand Alliance", "APGA", "005"),
-            ("Labour Party", "LP", "006"),
-            ("New Nigeria Peoples Party", "NNPP", "007"),
-            ("Peoples Democratic Party", "PDP", "008"),
-            ("Social Democratic Party", "SDP", "009"),
-            ("Young Progressive Party", "YPP", "010")
-        ]
-        cursor.executemany("INSERT INTO parties (name, acronym, inec_code) VALUES (?, ?, ?)", default_parties)
+        cursor.execute("INSERT INTO elections (name, type, constituency, registered_voters) VALUES (?, ?, ?, ?)",
+                       ("Ijebu East State House of Assembly Election 2027", "State House of Assembly", "Ijebu East", 50000))
 
+    # SEED ALL 19 ACTIVE INEC REGISTERED POLITICAL PARTIES WITH LOGOS
+    cursor.execute("SELECT COUNT(*) FROM parties")
+    if cursor.fetchone()[0] < 19:
+        cursor.execute("DELETE FROM parties") # Clear and re-seed full INEC list
+        all_inec_parties = [
+            ("Accord", "A", "001", "https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Accord_Party_Logo.png/120px-Accord_Party_Logo.png"),
+            ("Action Alliance", "AA", "002", "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Action_Alliance_Logo.png/120px-Action_Alliance_Logo.png"),
+            ("Action Democratic Party", "ADP", "003", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/ADP_Nigeria_Logo.png/120px-ADP_Nigeria_Logo.png"),
+            ("Action Peoples Party", "APP", "004", "https://via.placeholder.com/60?text=APP"),
+            ("African Action Congress", "AAC", "005", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/AAC_Party_Logo.jpg/120px-AAC_Party_Logo.jpg"),
+            ("African Democratic Congress", "ADC", "006", "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/ADC_Nigeria_Logo.png/120px-ADC_Nigeria_Logo.png"),
+            ("All Progressives Congress", "APC", "007", "https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/All_Progressives_Congress_flag.svg/120px-All_Progressives_Congress_flag.svg.png"),
+            ("All Progressives Grand Alliance", "APGA", "008", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/APGA_Party_Logo.png/120px-APGA_Party_Logo.png"),
+            ("Allied Peoples Movement", "APM", "009", "https://via.placeholder.com/60?text=APM"),
+            ("Boot Party", "BP", "010", "https://via.placeholder.com/60?text=BP"),
+            ("Labour Party", "LP", "011", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/39/Labour_Party_Nigeria_Logo.png/120px-Labour_Party_Nigeria_Logo.png"),
+            ("National Rescue Movement", "NRM", "012", "https://via.placeholder.com/60?text=NRM"),
+            ("New Nigeria Peoples Party", "NNPP", "013", "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/NNPP_Logo.png/120px-NNPP_Logo.png"),
+            ("Peoples Democratic Party", "PDP", "014", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/32/Peoples_Democratic_Party_logo.svg/120px-Peoples_Democratic_Party_logo.svg.png"),
+            ("People's Redemption Party", "PRP", "015", "https://via.placeholder.com/60?text=PRP"),
+            ("Social Democratic Party", "SDP", "016", "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/SDP_Nigeria_Logo.png/120px-SDP_Nigeria_Logo.png"),
+            ("Youth Party", "YP", "017", "https://via.placeholder.com/60?text=YP"),
+            ("Young Progressives Party", "YPP", "018", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/YPP_Nigeria_Logo.png/120px-YPP_Nigeria_Logo.png"),
+            ("Zenith Labour Party", "ZLP", "019", "https://via.placeholder.com/60?text=ZLP")
+        ]
+        cursor.executemany("INSERT INTO parties (name, acronym, inec_code, logo_url, is_active) VALUES (?, ?, ?, ?, 1)", all_inec_parties)
+
+    # Seed default candidates if empty
     cursor.execute("SELECT COUNT(*) FROM candidates")
     if cursor.fetchone()[0] == 0:
         default_candidates = [
@@ -193,6 +218,10 @@ def get_live_collation(election_id=None):
     cand_rows = cursor.fetchall()
     candidates_map = {c['party']: {"name": c['full_name'], "photo": c['photo_url']} for c in cand_rows}
 
+    cursor.execute("SELECT acronym, logo_url FROM parties")
+    party_rows = cursor.fetchall()
+    parties_logo_map = {p['acronym']: p['logo_url'] for p in party_rows}
+
     if election_id and election_id != 'all':
         cursor.execute("SELECT party_votes, valid_votes, rejected_votes, total_votes_cast FROM submissions WHERE status = 'ACCEPTED' AND election_id = ?", (election_id,))
     else:
@@ -222,7 +251,8 @@ def get_live_collation(election_id=None):
         "party": "N/A",
         "votes": 0,
         "percentage": "0%",
-        "photo": ""
+        "photo": "",
+        "party_logo": ""
     }
     
     if party_totals and grand_valid > 0:
@@ -236,7 +266,8 @@ def get_live_collation(election_id=None):
             "party": top_party,
             "votes": top_votes,
             "percentage": f"{top_pct}%",
-            "photo": cand_info["photo"]
+            "photo": cand_info["photo"],
+            "party_logo": parties_logo_map.get(top_party, "")
         }
         
     standings = []
@@ -247,6 +278,7 @@ def get_live_collation(election_id=None):
             "candidate": cand_info["name"],
             "party": party,
             "photo": cand_info["photo"],
+            "party_logo": parties_logo_map.get(party, ""),
             "votes": count,
             "percentage": f"{pct}%",
             "percent_num": pct
@@ -380,12 +412,12 @@ def get_all_parties():
     conn.close()
     return [dict(r) for r in rows]
 
-def create_party(name, acronym, inec_code, is_active):
+def create_party(name, acronym, inec_code, logo_url="", is_active=True):
     conn = get_db()
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO parties (name, acronym, inec_code, is_active) VALUES (?, ?, ?, ?)",
-                       (name, acronym, inec_code, 1 if is_active else 0))
+        cursor.execute("INSERT INTO parties (name, acronym, inec_code, logo_url, is_active) VALUES (?, ?, ?, ?, ?)",
+                       (name, acronym, inec_code, logo_url, 1 if is_active else 0))
         conn.commit()
         conn.close()
         return {"success": True, "message": f"Party {acronym} saved!"}
