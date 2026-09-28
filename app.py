@@ -29,10 +29,16 @@ def init_db():
             polling_unit TEXT, pu_code TEXT, party_votes TEXT DEFAULT '{}',
             valid_votes INTEGER DEFAULT 0, rejected_votes INTEGER DEFAULT 0,
             total_votes_cast INTEGER DEFAULT 0, image_url TEXT, submitted_by TEXT,
-            timestamp DATETIME, status TEXT DEFAULT 'PENDING', review_notes TEXT,
-            verified_by TEXT, verified_at DATETIME
+            assigned_to TEXT DEFAULT '', timestamp DATETIME, status TEXT DEFAULT 'PENDING',
+            review_notes TEXT, verified_by TEXT, verified_at DATETIME
         )
     ''')
+
+    # Migration check for assigned_to column
+    cursor.execute("PRAGMA table_info(submissions)")
+    cols = [col[1] for col in cursor.fetchall()]
+    if 'assigned_to' not in cols:
+        cursor.execute("ALTER TABLE submissions ADD COLUMN assigned_to TEXT DEFAULT ''")
 
     # 2. Users Table
     cursor.execute('''
@@ -79,7 +85,8 @@ def init_db():
     if cursor.fetchone()[0] == 0:
         default_users = [
             ("Oladele Rotimi Williams", "superadmin", "Super Admin", "admin@electionwatch.ng"),
-            ("Collation Admin", "admin", "Admin", "collation@electionwatch.ng"),
+            ("Collation Admin 1", "admin1", "Admin", "admin1@electionwatch.ng"),
+            ("Collation Admin 2", "admin2", "Admin", "admin2@electionwatch.ng"),
             ("Ijebu Field Officer", "field", "Field Officer", "field@electionwatch.ng"),
             ("Public Observer", "viewer", "Viewer", "observer@electionwatch.ng")
         ]
@@ -328,23 +335,55 @@ def init_db():
 init_db()
 
 # ==========================================
-# SYSTEM CORE LOGIC & MATH
+# SYSTEM CORE LOGIC & ROUND-ROBIN ROUTING
 # ==========================================
+def get_next_assigned_admin():
+    """Sequentially assign review task in round-robin sequence among Admins and Super Admins."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT full_name FROM users WHERE role IN ('Super Admin', 'Admin') ORDER BY id ASC")
+    reviewers = [r['full_name'] for r in cursor.fetchall()]
+    
+    if not reviewers:
+        conn.close()
+        return "Super Admin"
+        
+    cursor.execute("SELECT assigned_to FROM submissions WHERE assigned_to != '' ORDER BY id DESC LIMIT 1")
+    last_sub = cursor.fetchone()
+    conn.close()
+
+    if not last_sub or last_sub['assigned_to'] not in reviewers:
+        return reviewers[0]
+
+    last_idx = reviewers.index(last_sub['assigned_to'])
+    next_idx = (last_idx + 1) % len(reviewers)
+    return reviewers[next_idx]
+
 def save_pending_photo_submission(data):
+    assigned_admin = get_next_assigned_admin()
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO submissions (election_id, election_name, lga, ward, polling_unit, pu_code, image_url, submitted_by, timestamp, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+        INSERT INTO submissions (election_id, election_name, lga, ward, polling_unit, pu_code, image_url, submitted_by, assigned_to, timestamp, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
     ''', (
-        data.get('election_id', 'ijebu_east_sha'), data.get('election_name', 'Ijebu East State House of Assembly Election 2027'),
-        data.get('lga', 'Ijebu East'), data.get('ward'), data.get('polling_unit'), data.get('pu_code'),
-        data.get('image_url', ''), data.get('submitted_by', 'Field Officer'),
+        data.get('election_id', '1'),
+        data.get('election_name', 'Ijebu East State House of Assembly Election 2027'),
+        data.get('lga', 'Ijebu East'),
+        data.get('ward'),
+        data.get('polling_unit'),
+        data.get('pu_code'),
+        data.get('image_url', ''),
+        data.get('submitted_by', 'Field Officer'),
+        assigned_admin,
         datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     ))
     conn.commit()
     conn.close()
-    return {"status": "success", "message": "Result sheet uploaded successfully and routed to Review Queue!"}
+    return {
+        "status": "success",
+        "message": f"Result sheet submitted! Sequentially routed to [{assigned_admin}] for review."
+    }
 
 def admin_verify_and_collate(sub_id, party_votes, rejected_votes, status, notes="", verified_by="Super Admin"):
     conn = get_db()
@@ -361,7 +400,7 @@ def admin_verify_and_collate(sub_id, party_votes, rejected_votes, status, notes=
     
     cursor.execute("SELECT election_id FROM submissions WHERE id = ?", (sub_id,))
     row = cursor.fetchone()
-    election_id = row['election_id'] if row else 'ijebu_east_sha'
+    election_id = row['election_id'] if row else '1'
     conn.commit()
     conn.close()
     return get_live_collation(election_id)
@@ -384,8 +423,8 @@ def get_live_collation(election_id=None):
     cursor.execute("SELECT COUNT(*) FROM locations")
     total_pus_count = cursor.fetchone()[0] or 154
 
-    if election_id and election_id != 'all':
-        cursor.execute("SELECT party_votes, valid_votes, rejected_votes, total_votes_cast FROM submissions WHERE status = 'ACCEPTED' AND election_id = ?", (election_id,))
+    if election_id and str(election_id).strip() != 'all':
+        cursor.execute("SELECT party_votes, valid_votes, rejected_votes, total_votes_cast FROM submissions WHERE status = 'ACCEPTED' AND (election_id = ? OR election_name = ?)", (str(election_id), str(election_id)))
     else:
         cursor.execute("SELECT party_votes, valid_votes, rejected_votes, total_votes_cast FROM submissions WHERE status = 'ACCEPTED'")
         
@@ -436,7 +475,6 @@ def get_live_collation(election_id=None):
             "percent_num": pct
         })
         
-    # Sort standings by votes desc, then party acronym asc
     standings.sort(key=lambda x: (-x['votes'], x['party']))
     
     return {
@@ -493,11 +531,13 @@ def upload_photo_result():
     filepath = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(filepath)
     data = {
-        "election_id": request.form.get("election_id", "ijebu_east_sha"),
+        "election_id": request.form.get("election_id", "1"),
         "election_name": request.form.get("election_name", "Ijebu East State House of Assembly Election 2027"),
         "lga": request.form.get("lga", "Ijebu East"),
-        "ward": request.form.get("ward"), "polling_unit": request.form.get("polling_unit"),
-        "pu_code": request.form.get("pu_code"), "submitted_by": request.form.get("submitted_by", "Field Officer"),
+        "ward": request.form.get("ward"),
+        "polling_unit": request.form.get("polling_unit"),
+        "pu_code": request.form.get("pu_code"),
+        "submitted_by": request.form.get("submitted_by", "Field Officer"),
         "image_url": f"/{filepath}"
     }
     return jsonify(save_pending_photo_submission(data))
@@ -522,7 +562,8 @@ def reset_system():
 
 @app.route('/api/live-results', methods=['GET'])
 def live_results():
-    return jsonify(get_live_collation(request.args.get('election_id', 'ijebu_east_sha')))
+    election_id = request.args.get('election_id', '1')
+    return jsonify(get_live_collation(election_id))
 
 @app.route('/api/ward-results', methods=['GET'])
 def ward_results():
@@ -580,7 +621,7 @@ def handle_elections():
         conn.commit()
         conn.close()
         return jsonify({"success": True, "message": "Election created!"})
-    cursor.execute("SELECT * FROM elections ORDER BY id DESC")
+    cursor.execute("SELECT * FROM elections ORDER BY id ASC")
     rows = [dict(r) for r in cursor.fetchall()]
     conn.close()
     return jsonify(rows)
@@ -599,20 +640,27 @@ def handle_candidates():
     conn = get_db()
     cursor = conn.cursor()
     if request.method == 'POST':
-        full_name = request.form.get('full_name')
-        party = request.form.get('party')
-        election_name = request.form.get('election_name')
+        full_name = request.form.get('full_name', '').strip()
+        party = request.form.get('party', '').strip()
+        election_name = request.form.get('election_name', '').strip()
+
+        if not full_name or not party or not election_name:
+            conn.close()
+            return jsonify({"success": False, "message": "Full Name, Party, and Election selection are required."}), 400
+
         photo_url = ''
         if 'photo' in request.files and request.files['photo'].filename != '':
             file = request.files['photo']
             filepath = os.path.join(UPLOAD_FOLDER, f"cand_{file.filename}")
             file.save(filepath)
             photo_url = f"/{filepath}"
+
         cursor.execute("INSERT INTO candidates (full_name, party, election_name, photo_url, created_at) VALUES (?, ?, ?, ?, ?)",
                        (full_name, party, election_name, photo_url, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         conn.commit()
         conn.close()
-        return jsonify({"success": True, "message": "Candidate saved!"})
+        return jsonify({"success": True, "message": f"Candidate '{full_name}' saved successfully!"})
+        
     cursor.execute("SELECT * FROM candidates ORDER BY id DESC")
     rows = [dict(r) for r in cursor.fetchall()]
     conn.close()
@@ -733,7 +781,7 @@ HTML_TEMPLATE = """
             <form id="loginForm" class="auth-form">
                 <div class="input-group">
                     <label>Username / Account ID</label>
-                    <input type="text" id="username" placeholder="e.g. superadmin, admin, field, viewer" required>
+                    <input type="text" id="username" placeholder="Enter username" required>
                 </div>
                 <div class="input-group">
                     <label>Password</label>
@@ -744,14 +792,6 @@ HTML_TEMPLATE = """
 
             <div style="margin-top:15px; width:100%;">
                 <button type="button" class="btn-submit" style="background:#2563eb;" onclick="openGuestViewer()">🌐 Public Guest Access (Read Only)</button>
-            </div>
-
-            <div style="margin-top:15px; font-size:11px; text-align:left; color:#64748b; background:#f8fafc; padding:10px; border-radius:8px; width:100%;">
-                <strong>Demo Quick Sign-In Usernames:</strong><br>
-                • <code>superadmin</code> (Super Admin - All Tabs Access)<br>
-                • <code>admin</code> (Admin - All except Admin Settings)<br>
-                • <code>field</code> (Field Officer - Live, Results, Upload)<br>
-                • <code>viewer</code> (Viewer - Read Only)
             </div>
 
             <footer class="app-footer">
@@ -785,7 +825,7 @@ HTML_TEMPLATE = """
 
                 <div class="input-group">
                     <label>Select Election</label>
-                    <select id="liveElectionSelect" onchange="loadLiveResults()"></select>
+                    <select id="liveElectionSelect" onchange="onLiveElectionChanged()"></select>
                 </div>
 
                 <div class="leader-card">
@@ -867,16 +907,25 @@ HTML_TEMPLATE = """
                         <p id="summaryWardPU" style="font-size:12px; color:#a8dadc; margin-top:4px;"></p>
                     </div>
 
-                    <label class="btn-action" style="display:block; text-align:center; background:#2563eb; margin-bottom:15px; cursor:pointer;">
-                        📷 Attach Result Sheet Photo
-                        <input type="file" id="ec8aPhoto" accept="image/*" style="display:none;" onchange="previewUploadImage(this)">
-                    </label>
+                    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;">
+                        <!-- DIRECT CAMERA CAPTURE -->
+                        <label class="btn-action" style="text-align:center; background:#16a34a; cursor:pointer;">
+                            📷 Snap Directly with Camera
+                            <input type="file" id="ec8aCamera" accept="image/*" capture="environment" style="display:none;" onchange="previewUploadImage(this)">
+                        </label>
+
+                        <!-- PHOTO GALLERY SELECTION -->
+                        <label class="btn-action" style="text-align:center; background:#2563eb; cursor:pointer;">
+                            📁 Choose Photo from Gallery
+                            <input type="file" id="ec8aPhoto" accept="image/*" style="display:none;" onchange="previewUploadImage(this)">
+                        </label>
+                    </div>
 
                     <div id="imagePreviewBox" style="display:none; text-align:center; margin-bottom:15px;">
                         <img id="uploadPreviewImg" src="" style="width:100%; max-height:250px; object-fit:contain; border-radius:8px; border:2px solid #0c235c;">
                     </div>
 
-                    <button id="btnSubmitPhoto" class="btn-submit" style="display:none;" onclick="submitPhotoOnly()">📤 Route to Verification Queue</button>
+                    <button id="btnSubmitPhoto" class="btn-submit" style="display:none;" onclick="submitPhotoOnly()">📤 Submit Result for Sequential Review</button>
                     <button class="btn-secondary" style="margin-top:10px;" onclick="goToUploadStep(4)">← Back</button>
                 </div>
             </section>
@@ -885,7 +934,7 @@ HTML_TEMPLATE = """
             <section id="tab-review" class="tab-content">
                 <div class="section-heading"><h2>🔍 Verification & Audit Queue</h2></div>
                 <div style="display:flex; gap:8px; margin-bottom:12px;">
-                    <button id="btnViewPending" class="btn-select-option" style="flex:1; text-align:center;" onclick="switchReviewSubTab('pending')">📌 Pending Submissions</button>
+                    <button id="btnViewPending" class="btn-select-option" style="flex:1; text-align:center;" onclick="switchReviewSubTab('pending')">📌 Pending Queue</button>
                     <button id="btnViewAudit" class="btn-secondary" style="flex:1; text-align:center;" onclick="switchReviewSubTab('audit')">📜 Audit Log</button>
                 </div>
                 <div id="subTabPending"><div id="reviewQueueList"></div></div>
@@ -965,10 +1014,10 @@ HTML_TEMPLATE = """
     <div id="adminCandidateModal" class="modal-overlay">
         <div class="modal-card">
             <h3>👥 Add Candidate</h3>
-            <div class="input-group"><label>Candidate Full Name</label><input type="text" id="adminCandName"></div>
-            <div class="input-group"><label>Party</label><select id="adminCandParty"></select></div>
-            <div class="input-group"><label>Election</label><select id="adminCandElection"></select></div>
-            <div class="input-group"><label>Picture</label><input type="file" id="adminCandPhoto" accept="image/*"></div>
+            <div class="input-group"><label>Candidate Full Name</label><input type="text" id="adminCandName" placeholder="e.g. Hon. John Smith"></div>
+            <div class="input-group"><label>Political Party</label><select id="adminCandParty"></select></div>
+            <div class="input-group"><label>Election Category</label><select id="adminCandElection"></select></div>
+            <div class="input-group"><label>Candidate Photo</label><input type="file" id="adminCandPhoto" accept="image/*"></div>
             <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateCandidate()">Save Candidate</button>
             <button class="btn-secondary" style="margin-top:8px;" onclick="closeAdminModals()">Cancel</button>
         </div>
@@ -991,10 +1040,11 @@ HTML_TEMPLATE = """
     </div>
 
     <script>
-        let currentUploadData = { election_name: '', election_id: 'ijebu_east_sha', ward: '', polling_unit: '', pu_code: '' };
+        let currentUploadData = { election_name: '', election_id: '1', ward: '', polling_unit: '', pu_code: '' };
         let activeModalSubmissionId = null;
         let selectedPhotoFile = null;
         let currentUserRole = "Super Admin";
+        let dropdownElectionsLoaded = false;
 
         document.addEventListener('DOMContentLoaded', () => {
             const loginForm = document.getElementById('loginForm');
@@ -1013,7 +1063,9 @@ HTML_TEMPLATE = """
                         applyRolePermissions(data.role, data.full_name || username);
                         document.getElementById('authPage').classList.remove('active');
                         document.getElementById('dashboardPage').classList.add('active');
-                        document.querySelector('.nav-item[data-tab="live"]').click();
+                        initElectionsDropdown().then(() => {
+                            document.querySelector('.nav-item[data-tab="live"]').click();
+                        });
                     });
                 });
             }
@@ -1043,7 +1095,9 @@ HTML_TEMPLATE = """
             applyRolePermissions("Viewer", "Guest Observer");
             document.getElementById('authPage').classList.remove('active');
             document.getElementById('dashboardPage').classList.add('active');
-            document.querySelector('.nav-item[data-tab="live"]').click();
+            initElectionsDropdown().then(() => {
+                document.querySelector('.nav-item[data-tab="live"]').click();
+            });
         }
 
         function applyRolePermissions(role, name) {
@@ -1069,12 +1123,31 @@ HTML_TEMPLATE = """
             } else if (role === 'Field Officer') {
                 btnUpload.style.display = 'flex';
             } else {
-                // Viewer (Read Only - Live & Results)
+                // Viewer
             }
         }
 
+        function initElectionsDropdown() {
+            if (dropdownElectionsLoaded) return Promise.resolve();
+            return fetch('/api/admin/elections').then(res => res.json()).then(elections => {
+                let opts = '<option value="all">-- All Elections Combined --</option>';
+                elections.forEach(e => { opts += `<option value="${e.id}">${e.name}</option>`; });
+                const sel = document.getElementById('liveElectionSelect');
+                if (sel) {
+                    sel.innerHTML = opts;
+                    if (elections.length > 0) sel.value = elections[0].id;
+                }
+                dropdownElectionsLoaded = true;
+            });
+        }
+
+        function onLiveElectionChanged() {
+            loadLiveResults();
+        }
+
         function loadLiveResults() {
-            fetch('/api/live-results').then(res => res.json()).then(data => {
+            const selectedElectionId = document.getElementById('liveElectionSelect')?.value || '1';
+            fetch('/api/live-results?election_id=' + encodeURIComponent(selectedElectionId)).then(res => res.json()).then(data => {
                 document.getElementById('leaderTitle').innerText = data.leader?.candidate || 'Awaiting Verified Results';
                 document.getElementById('leaderParty').innerText = data.leader?.party !== 'N/A' ? 'Party: ' + data.leader?.party : '';
                 document.getElementById('leaderVotes').innerText = (data.leader?.votes || 0).toLocaleString();
@@ -1117,12 +1190,6 @@ HTML_TEMPLATE = """
                 });
                 document.getElementById('standingsContainer').innerHTML = html || '<p style="text-align:center; padding:10px;">No party data loaded.</p>';
             });
-
-            fetch('/api/admin/elections').then(res=>res.json()).then(elections => {
-                let opts = '';
-                elections.forEach(e => { opts += `<option value="${e.id}">${e.name}</option>`; });
-                document.getElementById('liveElectionSelect').innerHTML = opts;
-            });
         }
 
         function loadWardTable() {
@@ -1144,7 +1211,7 @@ HTML_TEMPLATE = """
                 document.getElementById('electionTypesStack').innerHTML = typeBtns;
 
                 let electBtns = '';
-                elections.forEach(e => { electBtns += `<button class="btn-select-option" onclick="selectElection('${e.name}')">${e.name}</button>`; });
+                elections.forEach(e => { electBtns += `<button class="btn-select-option" onclick="selectElection('${e.id}', '${e.name}')">${e.name}</button>`; });
                 document.getElementById('electionsListStack').innerHTML = electBtns;
             });
 
@@ -1160,7 +1227,7 @@ HTML_TEMPLATE = """
             document.getElementById('uploadStep' + s).classList.add('active');
         }
         function selectType(t) { goToUploadStep(2); }
-        function selectElection(e) { currentUploadData.election_name = e; goToUploadStep(3); }
+        function selectElection(id, e) { currentUploadData.election_id = id; currentUploadData.election_name = e; goToUploadStep(3); }
         function selectWard(w) {
             currentUploadData.ward = w;
             fetch('/api/locations/pus?ward=' + encodeURIComponent(w)).then(res => res.json()).then(pus => {
@@ -1191,9 +1258,10 @@ HTML_TEMPLATE = """
         }
 
         function submitPhotoOnly() {
-            if (!selectedPhotoFile) return alert("Select photograph");
+            if (!selectedPhotoFile) return alert("Select or capture a photograph first.");
             const fd = new FormData();
             fd.append('photo', selectedPhotoFile);
+            fd.append('election_id', currentUploadData.election_id);
             fd.append('election_name', currentUploadData.election_name);
             fd.append('ward', currentUploadData.ward);
             fd.append('polling_unit', currentUploadData.polling_unit);
@@ -1227,9 +1295,13 @@ HTML_TEMPLATE = """
                 queue.forEach(item => {
                     html += `
                     <div class="party-card" style="border-left-color:#d97706; margin-bottom:10px;">
-                        <span style="font-size:10px; font-weight:800; background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px;">PENDING VERIFICATION</span>
-                        <h4 style="margin-top:4px;">#${item.id} ${item.election_name}</h4>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:10px; font-weight:800; background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px;">PENDING VERIFICATION</span>
+                            <span style="font-size:11px; font-weight:700; color:#2563eb;">👉 Assigned to: ${item.assigned_to || 'Super Admin'}</span>
+                        </div>
+                        <h4 style="margin-top:6px;">#${item.id} ${item.election_name}</h4>
                         <p><small>Ward: ${item.ward} | PU: ${item.polling_unit} (${item.pu_code})</small></p>
+                        <p><small>Submitted by: <strong>${item.submitted_by||'Field Officer'}</strong></small></p>
                         <button class="btn-action" style="margin-top:8px;" onclick="openReviewModal(${item.id}, '${item.image_url}', '${item.ward}', '${item.polling_unit}', '${item.pu_code}', '${item.election_name}')">🔍 Verify & Collate Result</button>
                     </div>`;
                 });
@@ -1301,13 +1373,14 @@ HTML_TEMPLATE = """
                     document.getElementById('adminCandParty').innerHTML = opts;
                 });
                 fetch('/api/admin/elections').then(res=>res.json()).then(elections => {
-                    let opts = '<option value="">-- Select Election --</option>';
+                    let opts = '<option value="">-- Select Election Category --</option>';
                     elections.forEach(e => { opts += `<option value="${e.name}">${e.name}</option>`; });
                     document.getElementById('adminCandElection').innerHTML = opts;
                 });
                 document.getElementById('adminCandidateModal').classList.add('active');
             }
         }
+
         function closeAdminModals() { document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active')); }
 
         function submitCreateUser() {
@@ -1335,19 +1408,36 @@ HTML_TEMPLATE = """
         }
 
         function submitCreateCandidate() {
-            const p = document.getElementById('adminCandParty').value;
-            const e = document.getElementById('adminCandElection').value;
-            if (!p || !e) return alert("Select Party and Election from dropdowns");
+            const name = document.getElementById('adminCandName').value.trim();
+            const party = document.getElementById('adminCandParty').value;
+            const election = document.getElementById('adminCandElection').value;
+
+            if (!name || !party || !election) {
+                return alert("Please enter the Candidate Name and select both Party and Election Category.");
+            }
 
             const fd = new FormData();
-            fd.append('full_name', document.getElementById('adminCandName').value);
-            fd.append('party', p);
-            fd.append('election_name', e);
-            const photo = document.getElementById('adminCandPhoto');
-            if (photo.files[0]) fd.append('photo', photo.files[0]);
+            fd.append('full_name', name);
+            fd.append('party', party);
+            fd.append('election_name', election);
+            const photoInput = document.getElementById('adminCandPhoto');
+            if (photoInput && photoInput.files[0]) {
+                fd.append('photo', photoInput.files[0]);
+            }
 
             fetch('/api/admin/candidates', { method: 'POST', body: fd })
-            .then(res => res.json()).then(res => { alert(res.message); closeAdminModals(); loadAdminData('candidates'); });
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    alert(res.message);
+                    document.getElementById('adminCandName').value = '';
+                    closeAdminModals();
+                    loadAdminData('candidates');
+                } else {
+                    alert(res.message || "Error creating candidate.");
+                }
+            })
+            .catch(err => alert("Submission failed: " + err));
         }
 
         function loadAdminData(type) {
