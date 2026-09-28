@@ -74,11 +74,18 @@ def init_db():
         )
     ''')
     
-    # Seed Super Admin
+    # Seed Accounts for all 4 User Levels
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO users (full_name, username, role, email, created_at) VALUES (?, ?, ?, ?, ?)",
-                       ("Oladele Rotimi Williams", "Oladele Rotimi Williams", "Super Admin", "admin@electionwatch.ng", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        default_users = [
+            ("Oladele Rotimi Williams", "superadmin", "Super Admin", "admin@electionwatch.ng"),
+            ("Collation Admin", "admin", "Admin", "collation@electionwatch.ng"),
+            ("Ijebu Field Officer", "field", "Field Officer", "field@electionwatch.ng"),
+            ("Public Observer", "viewer", "Viewer", "observer@electionwatch.ng")
+        ]
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.executemany("INSERT INTO users (full_name, username, role, email, created_at) VALUES (?, ?, ?, ?, ?)",
+                           [(u[0], u[1], u[2], u[3], now_str) for u in default_users])
 
     # Preload Default Elections
     cursor.execute("SELECT COUNT(*) FROM elections")
@@ -92,7 +99,7 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO elections (name, type, constituency, registered_voters) VALUES (?, ?, ?, ?)", default_elections)
 
-    # Preload All 19 Active INEC Registered Political Parties with Logos
+    # Preload All 19 Active INEC Registered Political Parties
     cursor.execute("SELECT COUNT(*) FROM parties")
     if cursor.fetchone()[0] < 19:
         cursor.execute("DELETE FROM parties")
@@ -119,26 +126,70 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO parties (name, acronym, inec_code, logo_url, is_active) VALUES (?, ?, ?, ?, 1)", all_inec_parties)
 
-    # Preload All 11 Official Wards & Polling Units in Ijebu East LGA
+    # Preload Official Wards & Polling Units across ALL 11 Wards in Ijebu East LGA
     cursor.execute("SELECT COUNT(*) FROM locations")
     if cursor.fetchone()[0] == 0:
         ijebu_east_locations = [
-            ("Ogun", "Ijebu East", "Ijebu Mushin I", "St. Mary Primary School", "27/07/01/001"),
-            ("Ogun", "Ijebu East", "Ijebu Mushin I", "Town Hall Mushin", "27/07/01/002"),
-            ("Ogun", "Ijebu East", "Ijebu Mushin II", "Anglican Primary School", "27/07/02/001"),
-            ("Ogun", "Ijebu East", "Ijebu Mushin II", "Court Hall Mushin", "27/07/02/002"),
-            ("Ogun", "Ijebu East", "Ijebu Ife I", "Moslem Primary School", "27/07/03/001"),
-            ("Ogun", "Ijebu East", "Ijebu Ife I", "Customary Court Ife", "27/07/03/002"),
-            ("Ogun", "Ijebu East", "Ijebu Ife II", "St. Louis Primary School", "27/07/04/001"),
-            ("Ogun", "Ijebu East", "Itele", "Itele High School", "27/07/05/001"),
-            ("Ogun", "Ijebu East", "Itele", "Market Square Itele", "27/07/05/002"),
-            ("Ogun", "Ijebu East", "Ogbere", "LGA Secretariat Ogbere", "27/07/06/001"),
-            ("Ogun", "Ijebu East", "Ogbere", "Community Hall Ogbere", "27/07/06/002"),
-            ("Ogun", "Ijebu East", "Imobi I", "St. Peter Primary School Imobi", "27/07/07/001"),
-            ("Ogun", "Ijebu East", "Imobi II", "Open Space Fotedo", "27/07/08/001"),
-            ("Ogun", "Ijebu East", "Owu", "Owu Primary School", "27/07/09/001"),
+            # Ward 1: Ijebu Mushin I
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "St. Mary Primary School, Mushin", "27/07/01/001"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "Town Hall, Mushin", "27/07/01/002"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "Open Space, Igbaga", "27/07/01/003"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "Primary School, Tedo", "27/07/01/004"),
+
+            # Ward 2: Ijebu Mushin II
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "Anglican Primary School, Mushin", "27/07/02/001"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "Customary Court Hall, Mushin", "27/07/02/002"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "Open Space, Itun-Nla", "27/07/02/003"),
+
+            # Ward 3: Ijebu Ife I
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "Moslem Primary School, Ife", "27/07/03/001"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "Customary Court, Ife", "27/07/03/002"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "St. Gerard Primary School, Ife", "27/07/03/003"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "Open Space, Oke-Ife", "27/07/03/004"),
+
+            # Ward 4: Ijebu Ife II
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "St. Louis Primary School, Ife", "27/07/04/001"),
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "Community Hall, Agbowa Ife", "27/07/04/002"),
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "Open Space, Ayede Ife", "27/07/04/003"),
+
+            # Ward 5: Itele
+            ("Ogun", "Ijebu East", "Itele", "Itele High School, Itele", "27/07/05/001"),
+            ("Ogun", "Ijebu East", "Itele", "Market Square, Itele", "27/07/05/002"),
+            ("Ogun", "Ijebu East", "Itele", "St. John Primary School, Itele", "27/07/05/003"),
+            ("Ogun", "Ijebu East", "Itele", "Community Grammar School, Itele", "27/07/05/004"),
+
+            # Ward 6: Ogbere
+            ("Ogun", "Ijebu East", "Ogbere", "LGA Secretariat, Ogbere", "27/07/06/001"),
+            ("Ogun", "Ijebu East", "Ogbere", "Community Hall, Ogbere", "27/07/06/002"),
+            ("Ogun", "Ijebu East", "Ogbere", "St. Mark Primary School, Ogbere", "27/07/06/003"),
+            ("Ogun", "Ijebu East", "Ogbere", "Open Space, Station Road Ogbere", "27/07/06/004"),
+
+            # Ward 7: Imobi I
+            ("Ogun", "Ijebu East", "Imobi I", "St. Peter Primary School, Imobi", "27/07/07/001"),
+            ("Ogun", "Ijebu East", "Imobi I", "Open Space, Malara", "27/07/07/002"),
+            ("Ogun", "Ijebu East", "Imobi I", "Community Hall, Fotedo", "27/07/07/003"),
+            ("Ogun", "Ijebu East", "Imobi I", "Primary School, Ebute Imobi", "27/07/07/004"),
+
+            # Ward 8: Imobi II
+            ("Ogun", "Ijebu East", "Imobi II", "St. Paul Primary School, Macho", "27/07/08/001"),
+            ("Ogun", "Ijebu East", "Imobi II", "Open Space, Oke-Owa Imobi", "27/07/08/002"),
+            ("Ogun", "Ijebu East", "Imobi II", "Primary School, Odomagbo", "27/07/08/003"),
+
+            # Ward 9: Owu
+            ("Ogun", "Ijebu East", "Owu", "Owu Community Primary School, Owu", "27/07/09/001"),
+            ("Ogun", "Ijebu East", "Owu", "Town Hall, Owu Ikija", "27/07/09/002"),
+            ("Ogun", "Ijebu East", "Owu", "Open Space, Owu Waterside Road", "27/07/09/003"),
+
+            # Ward 10: Ikija
             ("Ogun", "Ijebu East", "Ikija", "Ikija Community High School", "27/07/10/001"),
-            ("Ogun", "Ijebu East", "Ajebandele", "Ajebandele Open Space", "27/07/11/001")
+            ("Ogun", "Ijebu East", "Ikija", "St. Luke Primary School, Ikija", "27/07/10/002"),
+            ("Ogun", "Ijebu East", "Ikija", "Open Space, Abigi Road Ikija", "27/07/10/003"),
+
+            # Ward 11: Ajebandele
+            ("Ogun", "Ijebu East", "Ajebandele", "Ajebandele Community Primary School", "27/07/11/001"),
+            ("Ogun", "Ijebu East", "Ajebandele", "Open Space, Ajebandele Market", "27/07/11/002"),
+            ("Ogun", "Ijebu East", "Ajebandele", "Open Space, J4 Camp Ajebandele", "27/07/11/003"),
+            ("Ogun", "Ijebu East", "Ajebandele", "Primary School, Forestry Camp", "27/07/11/004")
         ]
         cursor.executemany("INSERT INTO locations (state, lga, ward, polling_unit, pu_code) VALUES (?, ?, ?, ?, ?)", ijebu_east_locations)
 
@@ -172,7 +223,7 @@ def save_pending_photo_submission(data):
     ''', (
         data.get('election_id', 'ijebu_east_sha'), data.get('election_name', 'Ijebu East State House of Assembly Election 2027'),
         data.get('lga', 'Ijebu East'), data.get('ward'), data.get('polling_unit'), data.get('pu_code'),
-        data.get('image_url', ''), data.get('submitted_by', 'Oladele Rotimi Williams'),
+        data.get('image_url', ''), data.get('submitted_by', 'Field Officer'),
         datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     ))
     conn.commit()
@@ -202,11 +253,20 @@ def admin_verify_and_collate(sub_id, party_votes, rejected_votes, status, notes=
 def get_live_collation(election_id=None):
     conn = get_db()
     cursor = conn.cursor()
+
+    # Get candidate maps
     cursor.execute("SELECT full_name, party, photo_url FROM candidates")
     candidates_map = {c['party']: {"name": c['full_name'], "photo": c['photo_url']} for c in cursor.fetchall()}
 
-    cursor.execute("SELECT acronym, logo_url FROM parties")
-    parties_logo_map = {p['acronym']: p['logo_url'] for p in cursor.fetchall()}
+    # Get all 19 parties
+    cursor.execute("SELECT acronym, name, logo_url FROM parties ORDER BY acronym ASC")
+    all_parties = cursor.fetchall()
+    parties_logo_map = {p['acronym']: p['logo_url'] for p in all_parties}
+    parties_name_map = {p['acronym']: p['name'] for p in all_parties}
+
+    # Fetch total locations count
+    cursor.execute("SELECT COUNT(*) FROM locations")
+    total_pus_count = cursor.fetchone()[0] or 39
 
     if election_id and election_id != 'all':
         cursor.execute("SELECT party_votes, valid_votes, rejected_votes, total_votes_cast FROM submissions WHERE status = 'ACCEPTED' AND election_id = ?", (election_id,))
@@ -218,7 +278,8 @@ def get_live_collation(election_id=None):
     verified_pus = cursor.fetchone()[0]
     conn.close()
     
-    party_totals = {}
+    # Initialize all 19 parties with 0 votes
+    party_totals = {p['acronym']: 0 for p in all_parties}
     grand_valid = 0
     grand_rejected = 0
     grand_total_cast = 0
@@ -233,7 +294,7 @@ def get_live_collation(election_id=None):
             
     leader = {"candidate": "Awaiting Verified Results", "party": "N/A", "votes": 0, "percentage": "0%", "photo": "", "party_logo": ""}
     
-    if party_totals and grand_valid > 0:
+    if grand_valid > 0 and any(v > 0 for v in party_totals.values()):
         top_party = max(party_totals, key=party_totals.get)
         top_votes = party_totals[top_party]
         top_pct = round((top_votes / grand_valid * 100), 1)
@@ -243,15 +304,24 @@ def get_live_collation(election_id=None):
             "percentage": f"{top_pct}%", "photo": cand_info["photo"], "party_logo": parties_logo_map.get(top_party, "")
         }
         
+    # Build complete standings for ALL 19 PARTIES
     standings = []
-    for party, count in party_totals.items():
-        pct = round((count / grand_valid * 100), 1) if grand_valid > 0 else 0
-        cand_info = candidates_map.get(party, {"name": f"{party} Candidate", "photo": ""})
+    for party_acronym, count in party_totals.items():
+        pct = round((count / grand_valid * 100), 1) if grand_valid > 0 else 0.0
+        cand_info = candidates_map.get(party_acronym, {"name": f"{party_acronym} Candidate", "photo": ""})
         standings.append({
-            "candidate": cand_info["name"], "party": party, "photo": cand_info["photo"],
-            "party_logo": parties_logo_map.get(party, ""), "votes": count, "percentage": f"{pct}%", "percent_num": pct
+            "candidate": cand_info["name"],
+            "party": party_acronym,
+            "party_full_name": parties_name_map.get(party_acronym, party_acronym),
+            "photo": cand_info["photo"],
+            "party_logo": parties_logo_map.get(party_acronym, ""),
+            "votes": count,
+            "percentage": f"{pct}%",
+            "percent_num": pct
         })
-    standings.sort(key=lambda x: x['votes'], reverse=True)
+        
+    # Sort standings by votes desc, then party acronym asc
+    standings.sort(key=lambda x: (-x['votes'], x['party']))
     
     return {
         "leader": leader,
@@ -259,7 +329,8 @@ def get_live_collation(election_id=None):
             "registered": 50000, "votes_cast": grand_total_cast,
             "turnout": f"{round((grand_total_cast / 50000 * 100), 1) if grand_total_cast > 0 else 0}%",
             "valid": grand_valid, "rejected": grand_rejected,
-            "pus_verified": f"{verified_pus}/154", "progress_pct": f"{round((verified_pus / 154 * 100), 1)}%"
+            "pus_verified": f"{verified_pus}/{total_pus_count}",
+            "progress_pct": f"{round((verified_pus / total_pus_count * 100), 1) if total_pus_count > 0 else 0}%"
         },
         "standings": standings
     }
@@ -267,6 +338,38 @@ def get_live_collation(election_id=None):
 # ==========================================
 # REST API ENDPOINTS
 # ==========================================
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    data = request.json or {}
+    username = data.get('username', '').strip()
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE LOWER(username) = LOWER(?)", (username,))
+    user = cursor.fetchone()
+    conn.close()
+    if user:
+        return jsonify({
+            "success": True,
+            "username": user['username'],
+            "full_name": user['full_name'],
+            "role": user['role']
+        })
+    else:
+        # Fallback role based on name keyword if user doesn't exist in DB
+        role = "Viewer"
+        if "super" in username.lower() or "rotimi" in username.lower():
+            role = "Super Admin"
+        elif "admin" in username.lower():
+            role = "Admin"
+        elif "field" in username.lower():
+            role = "Field Officer"
+        return jsonify({
+            "success": True,
+            "username": username,
+            "full_name": username,
+            "role": role
+        })
+
 @app.route('/api/upload-photo-result', methods=['POST'])
 def upload_photo_result():
     if 'photo' not in request.files:
@@ -420,7 +523,7 @@ def get_pus():
     return jsonify(pus)
 
 # ==========================================
-# COMPLETE FRONTEND UI (EMBEDDED HTML/CSS/JS)
+# FRONTEND UI (EMBEDDED HTML/CSS/JS)
 # ==========================================
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -437,7 +540,7 @@ HTML_TEMPLATE = """
         .page.active { display: flex; flex-direction: column; }
         
         #authPage { background-color: #ffffff; justify-content: center; align-items: center; padding: 24px 20px; }
-        .auth-container { width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .auth-container { width: 100%; max-width: 420px; display: flex; flex-direction: column; align-items: center; text-align: center; }
         .auth-title { color: #0c235c; font-size: 24px; font-weight: 800; margin-top: 10px; margin-bottom: 6px; }
         .auth-subtitle { color: #6c757d; font-size: 14px; margin-bottom: 25px; }
         .auth-form { width: 100%; text-align: left; }
@@ -452,6 +555,7 @@ HTML_TEMPLATE = """
         .app-header p { font-size: 13px; color: #cbd5e1; }
         .user-bar { background-color: #081740; color: #ffffff; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; }
         .user-info { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; }
+        .role-badge { background-color: #2563eb; color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 12px; text-transform: uppercase; font-weight: 800; }
         .btn-logout { background-color: #ffffff; color: #0c235c; border: none; padding: 6px 18px; border-radius: 20px; font-size: 13px; font-weight: 700; cursor: pointer; }
         .dashboard-content { padding: 20px 16px; }
         .tab-content { display: none; }
@@ -467,16 +571,19 @@ HTML_TEMPLATE = """
         
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px; }
         .stat-card { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 4px; text-align: center; }
-        .stat-value { font-size: 16px; font-weight: 900; color: #0c235c; display: block; }
+        .stat-value { font-size: 15px; font-weight: 900; color: #0c235c; display: block; }
         .stat-label { font-size: 10px; font-weight: 700; color: #64748b; }
         
         .progress-section { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; margin-bottom: 20px; }
         .progress-track { width: 100%; height: 10px; background-color: #e2e8f0; border-radius: 6px; overflow: hidden; }
         .progress-fill { height: 100%; background-color: #0c235c; }
 
-        .candidate-list { display: flex; flex-direction: column; gap: 10px; }
-        .candidate-card { background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #0c235c; border-radius: 10px; padding: 12px 14px; }
-        .candidate-info { display: flex; justify-content: space-between; align-items: center; }
+        .party-counter-grid { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        .party-card { background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #0c235c; border-radius: 10px; padding: 12px 14px; }
+        .party-info { display: flex; justify-content: space-between; align-items: center; }
+        .party-bar-bg { width: 100%; height: 6px; background-color: #f1f5f9; border-radius: 4px; margin-top: 8px; overflow: hidden; }
+        .party-bar-fill { height: 100%; background-color: #2563eb; }
+
         .table-responsive { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 20px; }
         .results-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
         .results-table th, .results-table td { padding: 10px 8px; border-bottom: 1px solid #e2e8f0; }
@@ -493,12 +600,12 @@ HTML_TEMPLATE = """
 
         .app-footer { text-align: center; margin-top: 30px; padding: 15px 0; font-size: 12px; color: #64748b; line-height: 1.5; border-top: 1px solid #e2e8f0; }
         .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 60px; background-color: #ffffff; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-around; align-items: center; z-index: 100; }
-        .nav-item { background: none; border: none; display: flex; flex-direction: column; align-items: center; color: #64748b; cursor: pointer; flex: 1; padding: 8px 0; font-weight: 600; font-size: 12px; }
+        .nav-item { background: none; border: none; display: flex; flex-direction: column; align-items: center; color: #64748b; cursor: pointer; flex: 1; padding: 8px 0; font-weight: 600; font-size: 11px; }
         .nav-item.active { color: #0c235c; background-color: #eff6ff; font-weight: 800; }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; padding: 16px; }
         .modal-overlay.active { display: flex; }
-        .modal-card { background: #ffffff; border-radius: 16px; width: 100%; max-width: 400px; max-height: 90vh; overflow-y: auto; padding: 18px; }
+        .modal-card { background: #ffffff; border-radius: 16px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; padding: 18px; }
     </style>
 </head>
 <body>
@@ -510,18 +617,26 @@ HTML_TEMPLATE = """
 
             <form id="loginForm" class="auth-form">
                 <div class="input-group">
-                    <label>Username</label>
-                    <input type="text" id="username" placeholder="Enter username" required>
+                    <label>Username / Account ID</label>
+                    <input type="text" id="username" placeholder="e.g. superadmin, admin, field, viewer" required>
                 </div>
                 <div class="input-group">
                     <label>Password</label>
-                    <input type="password" id="password" placeholder="Enter password" required>
+                    <input type="password" id="password" value="••••••••" required>
                 </div>
                 <button type="submit" class="btn-submit">🔐 Sign In</button>
             </form>
 
-            <div style="margin-top:20px; width:100%;">
-                <button type="button" class="btn-submit" style="background:#2563eb;" onclick="openGuestViewer()">🌐 View Public Live Results (Guest Access)</button>
+            <div style="margin-top:15px; width:100%;">
+                <button type="button" class="btn-submit" style="background:#2563eb;" onclick="openGuestViewer()">🌐 Public Guest Access (Read Only)</button>
+            </div>
+
+            <div style="margin-top:15px; font-size:11px; text-align:left; color:#64748b; background:#f8fafc; padding:10px; border-radius:8px; width:100%;">
+                <strong>Demo Quick Sign-In Usernames:</strong><br>
+                • <code>superadmin</code> (Super Admin - All Features)<br>
+                • <code>admin</code> (Admin - All except Admin Settings)<br>
+                • <code>field</code> (Field Officer - Live, Results, Upload)<br>
+                • <code>viewer</code> (Viewer - Read Only)
             </div>
 
             <footer class="app-footer">
@@ -539,18 +654,22 @@ HTML_TEMPLATE = """
         </header>
 
         <div class="user-bar">
-            <div class="user-info">👤 <span id="userDisplayName">Guest Observer</span></div>
-            <button id="logoutBtn" class="btn-logout">Exit / Login</button>
+            <div class="user-info">
+                👤 <span id="userDisplayName">Guest Observer</span>
+                <span id="userRoleBadge" class="role-badge">Viewer</span>
+            </div>
+            <button id="logoutBtn" class="btn-logout">Exit</button>
         </div>
 
         <main class="dashboard-content">
 
+            <!-- TAB 1: LIVE FEED & REAL-TIME PARTY COUNTER -->
             <section id="tab-live" class="tab-content active">
-                <div class="section-heading"><h2>📊 Verified Collation</h2></div>
-                <div class="info-box"><p>Live totals dynamically reflect verified polling unit collations.</p></div>
+                <div class="section-heading"><h2>📊 Live Verified Collation</h2></div>
+                <div class="info-box"><p>Real-time vote tallies for all 19 registered INEC political parties.</p></div>
 
                 <div class="input-group">
-                    <label>Election Select</label>
+                    <label>Select Election</label>
                     <select id="liveElectionSelect" onchange="loadLiveResults()"></select>
                 </div>
 
@@ -570,22 +689,23 @@ HTML_TEMPLATE = """
                     <div class="stat-card"><span id="statTurnout" class="stat-value">0.0%</span><span class="stat-label">TURNOUT</span></div>
                     <div class="stat-card"><span id="statValid" class="stat-value">0</span><span class="stat-label">VALID</span></div>
                     <div class="stat-card"><span id="statRejected" class="stat-value">0</span><span class="stat-label">REJECTED</span></div>
-                    <div class="stat-card"><span id="statPUs" class="stat-value">0/154</span><span class="stat-label">PUS VERIFIED</span></div>
+                    <div class="stat-card"><span id="statPUs" class="stat-value">0/39</span><span class="stat-label">PUS VERIFIED</span></div>
                 </div>
 
                 <div class="progress-section">
                     <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:700; margin-bottom:6px;">
-                        <span>Polling Units Verified</span><span id="progressPctText">0.0%</span>
+                        <span>Polling Units Collation Progress</span><span id="progressPctText">0.0%</span>
                     </div>
                     <div class="progress-track"><div id="progressFill" class="progress-fill" style="width: 0%;"></div></div>
                 </div>
 
-                <div class="section-heading"><h2>🏛️ Verified Standings</h2></div>
-                <div id="standingsContainer" class="candidate-list"></div>
+                <div class="section-heading"><h2>🗳️ All 19 Political Parties - Real-Time Counter</h2></div>
+                <div id="standingsContainer" class="party-counter-grid"></div>
             </section>
 
+            <!-- TAB 2: WARD / PU RESULTS TABLE -->
             <section id="tab-results" class="tab-content">
-                <div class="section-heading"><h2>📋 Ward / PU Results</h2></div>
+                <div class="section-heading"><h2>📋 Ward / PU Breakdown</h2></div>
                 <div class="table-responsive">
                     <table class="results-table">
                         <thead>
@@ -598,6 +718,7 @@ HTML_TEMPLATE = """
                 </div>
             </section>
 
+            <!-- TAB 3: UPLOAD RESULT SHEET -->
             <section id="tab-upload" class="tab-content">
                 <div class="section-heading"><h2>📥 Submit Result Sheet</h2></div>
 
@@ -613,7 +734,7 @@ HTML_TEMPLATE = """
                 </div>
 
                 <div id="uploadStep3" class="wizard-step">
-                    <h3 style="margin-bottom:12px; color:#0c235c;">3. Select Ward (Ijebu East)</h3>
+                    <h3 style="margin-bottom:12px; color:#0c235c;">3. Select Ward (Ijebu East LGA)</h3>
                     <div class="btn-stack" id="wardsListStack"></div>
                     <button class="btn-secondary" style="margin-top:10px;" onclick="goToUploadStep(2)">← Back</button>
                 </div>
@@ -631,8 +752,8 @@ HTML_TEMPLATE = """
                         <p id="summaryWardPU" style="font-size:12px; color:#a8dadc; margin-top:4px;"></p>
                     </div>
 
-                    <label class="btn-action" style="display:block; text-align:center; background:#2563eb; margin-bottom:15px;">
-                        📁 Choose Photograph
+                    <label class="btn-action" style="display:block; text-align:center; background:#2563eb; margin-bottom:15px; cursor:pointer;">
+                        📷 Attach Result Sheet Photo
                         <input type="file" id="ec8aPhoto" accept="image/*" style="display:none;" onchange="previewUploadImage(this)">
                     </label>
 
@@ -640,25 +761,27 @@ HTML_TEMPLATE = """
                         <img id="uploadPreviewImg" src="" style="width:100%; max-height:250px; object-fit:contain; border-radius:8px; border:2px solid #0c235c;">
                     </div>
 
-                    <button id="btnSubmitPhoto" class="btn-submit" style="display:none;" onclick="submitPhotoOnly()">📤 Route to Manual Review Queue</button>
+                    <button id="btnSubmitPhoto" class="btn-submit" style="display:none;" onclick="submitPhotoOnly()">📤 Route to Verification Queue</button>
                     <button class="btn-secondary" style="margin-top:10px;" onclick="goToUploadStep(4)">← Back</button>
                 </div>
             </section>
 
+            <!-- TAB 4: REVIEW & COLLATION -->
             <section id="tab-review" class="tab-content">
-                <div class="section-heading"><h2>🔍 Verification & Audit</h2></div>
+                <div class="section-heading"><h2>🔍 Verification & Audit Queue</h2></div>
                 <div style="display:flex; gap:8px; margin-bottom:12px;">
-                    <button id="btnViewPending" class="btn-select-option" style="flex:1; text-align:center;" onclick="switchReviewSubTab('pending')">📌 Pending</button>
+                    <button id="btnViewPending" class="btn-select-option" style="flex:1; text-align:center;" onclick="switchReviewSubTab('pending')">📌 Pending Submissions</button>
                     <button id="btnViewAudit" class="btn-secondary" style="flex:1; text-align:center;" onclick="switchReviewSubTab('audit')">📜 Audit Log</button>
                 </div>
                 <div id="subTabPending"><div id="reviewQueueList"></div></div>
                 <div id="subTabAudit" style="display:none;"><div id="auditLogList"></div></div>
             </section>
 
+            <!-- TAB 5: ADMINISTRATION -->
             <section id="tab-admin" class="tab-content">
-                <div class="section-heading"><h2>⚙️ Administration</h2></div>
+                <div class="section-heading"><h2>⚙️ Administration Panel</h2></div>
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:15px;">
-                    <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('user')">👤 Users</button>
+                    <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('user')">👤 Users Management</button>
                     <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('election')">📦 Elections</button>
                     <button class="btn-select-option" style="text-align:center;" onclick="loadAdminData('parties')">🏛️ Parties (19)</button>
                     <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('candidate')">👥 Candidates</button>
@@ -666,9 +789,9 @@ HTML_TEMPLATE = """
                 <div id="adminDataDisplay"></div>
 
                 <div style="background:#fef2f2; border:1px solid #fca5a5; padding:14px; border-radius:12px; margin-top:20px;">
-                    <h4 style="color:#991b1b;">🚨 Super Admin Reset</h4>
+                    <h4 style="color:#991b1b;">🚨 System Reset</h4>
                     <p style="font-size:12px; color:#991b1b; margin:6px 0 10px;">Wipes all result submissions and resets system tallies to 0.</p>
-                    <button class="btn-submit" style="background:#dc2626;" onclick="triggerSystemReset()">⚡ Reset System to Default</button>
+                    <button class="btn-submit" style="background:#dc2626;" onclick="triggerSystemReset()">⚡ Reset System Data</button>
                 </div>
             </section>
 
@@ -679,27 +802,38 @@ HTML_TEMPLATE = """
             </footer>
         </main>
 
+        <!-- Dynamic Access Navigation Bar -->
         <nav class="bottom-nav">
-            <button class="nav-item active" data-tab="live">Live</button>
-            <button class="nav-item" data-tab="results">Results</button>
+            <button class="nav-item active" data-tab="live" id="navLiveBtn">Live</button>
+            <button class="nav-item" data-tab="results" id="navResultsBtn">Results</button>
             <button class="nav-item" data-tab="upload" id="navUploadBtn">Upload</button>
             <button class="nav-item" data-tab="review" id="navReviewBtn">Review</button>
             <button class="nav-item" data-tab="admin" id="navAdminBtn">Admin</button>
         </nav>
     </div>
 
+    <!-- ADMIN USER CREATION MODAL -->
     <div id="adminUserModal" class="modal-overlay">
         <div class="modal-card">
-            <h3>👤 Create User</h3>
-            <div class="input-group"><label>Full Name</label><input type="text" id="adminUserFullName"></div>
-            <div class="input-group"><label>Username</label><input type="text" id="adminUsername"></div>
-            <div class="input-group"><label>Role</label><select id="adminUserRole"><option>Viewer</option><option>Field Officer</option><option>Super Admin</option></select></div>
-            <div class="input-group"><label>Email</label><input type="email" id="adminUserEmail"></div>
-            <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateUser()">Save User</button>
+            <h3>👤 Create New User</h3>
+            <div class="input-group"><label>Full Name</label><input type="text" id="adminUserFullName" placeholder="e.g. John Doe"></div>
+            <div class="input-group"><label>Username</label><input type="text" id="adminUsername" placeholder="e.g. jdoe"></div>
+            <div class="input-group">
+                <label>User Level / Role</label>
+                <select id="adminUserRole">
+                    <option value="Super Admin">Super Admin (All Tabs Access)</option>
+                    <option value="Admin">Admin (All except Admin Settings)</option>
+                    <option value="Field Officer">Field Officer (Live, Results, Upload)</option>
+                    <option value="Viewer">Viewer (Read Only - Live & Results)</option>
+                </select>
+            </div>
+            <div class="input-group"><label>Email Address</label><input type="email" id="adminUserEmail" placeholder="user@domain.com"></div>
+            <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateUser()">Save User Account</button>
             <button class="btn-secondary" style="margin-top:8px;" onclick="closeAdminModals()">Cancel</button>
         </div>
     </div>
 
+    <!-- ELECTION MODAL -->
     <div id="adminElectionModal" class="modal-overlay">
         <div class="modal-card">
             <h3>📦 Create Election</h3>
@@ -712,27 +846,29 @@ HTML_TEMPLATE = """
         </div>
     </div>
 
+    <!-- CANDIDATE MODAL -->
     <div id="adminCandidateModal" class="modal-overlay">
         <div class="modal-card">
             <h3>👥 Add Candidate</h3>
             <div class="input-group"><label>Candidate Full Name</label><input type="text" id="adminCandName"></div>
-            <div class="input-group"><label>Party (Prefilled Dropdown)</label><select id="adminCandParty"></select></div>
-            <div class="input-group"><label>Election (Prefilled Dropdown)</label><select id="adminCandElection"></select></div>
+            <div class="input-group"><label>Party</label><select id="adminCandParty"></select></div>
+            <div class="input-group"><label>Election</label><select id="adminCandElection"></select></div>
             <div class="input-group"><label>Picture</label><input type="file" id="adminCandPhoto" accept="image/*"></div>
             <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateCandidate()">Save Candidate</button>
             <button class="btn-secondary" style="margin-top:8px;" onclick="closeAdminModals()">Cancel</button>
         </div>
     </div>
 
+    <!-- REVIEW COLLATION MODAL -->
     <div id="reviewModal" class="modal-overlay">
         <div class="modal-card">
-            <h3>🔍 Manual Collation</h3>
+            <h3>🔍 Verification & Collation</h3>
             <img id="modalImage" src="" style="width:100%; height:180px; object-fit:contain; background:#1e293b; border-radius:8px; margin:8px 0;">
             <div id="modalDetails" style="font-size:12px; background:#f1f5f9; padding:8px; border-radius:6px; margin-bottom:10px;"></div>
             <div id="reviewPartyInputs"></div>
-            <textarea id="reviewNotes" placeholder="Notes..." style="width:100%; height:40px; padding:6px; margin-top:8px;"></textarea>
+            <textarea id="reviewNotes" placeholder="Collation Notes..." style="width:100%; height:40px; padding:6px; margin-top:8px;"></textarea>
             <div style="display:flex; gap:8px; margin-top:10px;">
-                <button class="btn-submit" style="background:#16a34a; flex:1;" onclick="submitManualCollation('ACCEPTED')">✓ Accept</button>
+                <button class="btn-submit" style="background:#16a34a; flex:1;" onclick="submitManualCollation('ACCEPTED')">✓ Accept & Collate</button>
                 <button class="btn-submit" style="background:#dc2626; flex:1;" onclick="submitManualCollation('REJECTED')">✕ Reject</button>
             </div>
             <button class="btn-secondary" style="margin-top:8px;" onclick="closeReviewModal()">Close</button>
@@ -743,23 +879,35 @@ HTML_TEMPLATE = """
         let currentUploadData = { election_name: '', election_id: 'ijebu_east_sha', ward: '', polling_unit: '', pu_code: '' };
         let activeModalSubmissionId = null;
         let selectedPhotoFile = null;
+        let currentUserRole = "Super Admin";
 
         document.addEventListener('DOMContentLoaded', () => {
             const loginForm = document.getElementById('loginForm');
             if (loginForm) {
                 loginForm.addEventListener('submit', (e) => {
                     e.preventDefault();
-                    document.getElementById('userDisplayName').innerText = (document.getElementById('username')?.value || 'Admin') + ' · SuperAdmin';
-                    setGuestPermissions(false);
-                    document.getElementById('authPage').classList.remove('active');
-                    document.getElementById('dashboardPage').classList.add('active');
-                    loadLiveResults();
+                    const username = document.getElementById('username')?.value || 'user';
+                    
+                    fetch('/api/login', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ username: username })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        applyRolePermissions(data.role, data.full_name || username);
+                        document.getElementById('authPage').classList.remove('active');
+                        document.getElementById('dashboardPage').classList.add('active');
+                        document.querySelector('.nav-item[data-tab="live"]').click();
+                    });
                 });
             }
+
             document.getElementById('logoutBtn').addEventListener('click', () => {
                 document.getElementById('dashboardPage').classList.remove('active');
                 document.getElementById('authPage').classList.add('active');
             });
+
             document.querySelectorAll('.nav-item').forEach(item => {
                 item.addEventListener('click', () => {
                     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -777,17 +925,39 @@ HTML_TEMPLATE = """
         });
 
         function openGuestViewer() {
-            document.getElementById('userDisplayName').innerText = "Guest Observer · Read-Only";
-            setGuestPermissions(true);
+            applyRolePermissions("Viewer", "Guest Observer");
             document.getElementById('authPage').classList.remove('active');
             document.getElementById('dashboardPage').classList.add('active');
             document.querySelector('.nav-item[data-tab="live"]').click();
         }
 
-        function setGuestPermissions(isGuest) {
-            document.getElementById('navUploadBtn').style.display = isGuest ? 'none' : 'flex';
-            document.getElementById('navReviewBtn').style.display = isGuest ? 'none' : 'flex';
-            document.getElementById('navAdminBtn').style.display = isGuest ? 'none' : 'flex';
+        // Apply 4-Level RBAC Permissions UI Logic
+        function applyRolePermissions(role, name) {
+            currentUserRole = role;
+            document.getElementById('userDisplayName').innerText = name;
+            document.getElementById('userRoleBadge').innerText = role;
+
+            const btnUpload = document.getElementById('navUploadBtn');
+            const btnReview = document.getElementById('navReviewBtn');
+            const btnAdmin = document.getElementById('navAdminBtn');
+
+            // Reset tab visibilities
+            btnUpload.style.display = 'none';
+            btnReview.style.display = 'none';
+            btnAdmin.style.display = 'none';
+
+            if (role === 'Super Admin') {
+                btnUpload.style.display = 'flex';
+                btnReview.style.display = 'flex';
+                btnAdmin.style.display = 'flex';
+            } else if (role === 'Admin') {
+                btnUpload.style.display = 'flex';
+                btnReview.style.display = 'flex';
+            } else if (role === 'Field Officer') {
+                btnUpload.style.display = 'flex';
+            } else {
+                // Viewer (Read Only - Only Live & Results available)
+            }
         }
 
         function loadLiveResults() {
@@ -806,24 +976,34 @@ HTML_TEMPLATE = """
                 document.getElementById('statTurnout').innerText = data.metrics?.turnout || '0.0%';
                 document.getElementById('statValid').innerText = (data.metrics?.valid || 0).toLocaleString();
                 document.getElementById('statRejected').innerText = (data.metrics?.rejected || 0).toLocaleString();
-                document.getElementById('statPUs').innerText = data.metrics?.pus_verified || '0/154';
+                document.getElementById('statPUs').innerText = data.metrics?.pus_verified || '0/39';
                 document.getElementById('progressPctText').innerText = data.metrics?.progress_pct || '0.0%';
                 document.getElementById('progressFill').style.width = data.metrics?.progress_pct || '0%';
 
+                // Render ALL 19 PARTIES Real-Time Counter
                 let html = '';
                 (data.standings || []).forEach(item => {
                     html += `
-                    <div class="candidate-card">
-                        <div class="candidate-info">
+                    <div class="party-card">
+                        <div class="party-info">
                             <div style="display:flex; align-items:center; gap:10px;">
-                                ${item.photo ? `<img src="${item.photo}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">` : (item.party_logo ? `<img src="${item.party_logo}" style="width:38px; height:38px; object-fit:contain;">` : '👤')}
-                                <div><h4>${item.candidate}</h4><p style="font-weight:700; color:#0c235c;">${item.party}</p></div>
+                                ${item.party_logo ? `<img src="${item.party_logo}" style="width:36px; height:36px; object-fit:contain;">` : '🏛️'}
+                                <div>
+                                    <h4 style="font-size:15px;">${item.party} - ${item.party_full_name}</h4>
+                                    <p style="font-size:11px; color:#64748b;">${item.candidate}</p>
+                                </div>
                             </div>
-                            <div style="text-align:right;"><span style="font-size:16px; font-weight:900; color:#0c235c;">${(item.votes||0).toLocaleString()}</span><br><small>${item.percentage}</small></div>
+                            <div style="text-align:right;">
+                                <span style="font-size:16px; font-weight:900; color:#0c235c;">${(item.votes||0).toLocaleString()}</span>
+                                <br><small style="font-weight:700; color:#2563eb;">${item.percentage}</small>
+                            </div>
+                        </div>
+                        <div class="party-bar-bg">
+                            <div class="party-bar-fill" style="width: ${item.percent_num}%;"></div>
                         </div>
                     </div>`;
                 });
-                document.getElementById('standingsContainer').innerHTML = html || '<p style="text-align:center; padding:10px;">No collated votes recorded.</p>';
+                document.getElementById('standingsContainer').innerHTML = html || '<p style="text-align:center; padding:10px;">No party data loaded.</p>';
             });
 
             fetch('/api/admin/elections').then(res=>res.json()).then(elections => {
@@ -906,7 +1086,7 @@ HTML_TEMPLATE = """
             fd.append('ward', currentUploadData.ward);
             fd.append('polling_unit', currentUploadData.polling_unit);
             fd.append('pu_code', currentUploadData.pu_code);
-            fd.append('submitted_by', document.getElementById('username')?.value || 'Field Officer');
+            fd.append('submitted_by', document.getElementById('userDisplayName')?.innerText || 'Field Officer');
 
             fetch('/api/upload-photo-result', { method: 'POST', body: fd })
             .then(res => res.json()).then(res => {
@@ -915,7 +1095,11 @@ HTML_TEMPLATE = """
                 document.getElementById('imagePreviewBox').style.display = 'none';
                 document.getElementById('btnSubmitPhoto').style.display = 'none';
                 goToUploadStep(1);
-                document.querySelector('.nav-item[data-tab="review"]').click();
+                if (currentUserRole === 'Super Admin' || currentUserRole === 'Admin') {
+                    document.querySelector('.nav-item[data-tab="review"]').click();
+                } else {
+                    document.querySelector('.nav-item[data-tab="live"]').click();
+                }
             });
         }
 
@@ -930,14 +1114,14 @@ HTML_TEMPLATE = """
                 let html = '';
                 queue.forEach(item => {
                     html += `
-                    <div class="candidate-card" style="border-left-color:#d97706; margin-bottom:10px;">
-                        <span style="font-size:10px; font-weight:800; background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px;">PENDING</span>
+                    <div class="party-card" style="border-left-color:#d97706; margin-bottom:10px;">
+                        <span style="font-size:10px; font-weight:800; background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px;">PENDING VERIFICATION</span>
                         <h4 style="margin-top:4px;">#${item.id} ${item.election_name}</h4>
                         <p><small>Ward: ${item.ward} | PU: ${item.polling_unit} (${item.pu_code})</small></p>
-                        <button class="btn-action" style="margin-top:8px;" onclick="openReviewModal(${item.id}, '${item.image_url}', '${item.ward}', '${item.polling_unit}', '${item.pu_code}', '${item.election_name}')">🔍 Collate Result</button>
+                        <button class="btn-action" style="margin-top:8px;" onclick="openReviewModal(${item.id}, '${item.image_url}', '${item.ward}', '${item.polling_unit}', '${item.pu_code}', '${item.election_name}')">🔍 Verify & Collate Result</button>
                     </div>`;
                 });
-                document.getElementById('reviewQueueList').innerHTML = html || '<p style="text-align:center; padding:15px;">No pending submissions.</p>';
+                document.getElementById('reviewQueueList').innerHTML = html || '<p style="text-align:center; padding:15px;">No pending submissions in queue.</p>';
             });
         }
 
@@ -946,14 +1130,14 @@ HTML_TEMPLATE = """
                 let html = '';
                 logs.forEach(item => {
                     html += `
-                    <div class="candidate-card" style="border-left-color:${item.status==='ACCEPTED'?'#16a34a':'#dc2626'}; margin-bottom:10px;">
-                        <span style="font-size:10px; font-weight:800; background:${item.status==='ACCEPTED'?'#dcfce7':'#fee2e2'}; padding:2px 6px; border-radius:4px;">${item.status}</span>
+                    <div class="party-card" style="border-left-color:${item.status==='ACCEPTED'?'#16a34a':'#dc2626'}; margin-bottom:10px;">
+                        <span style="font-size:10px; font-weight:800; background:${item.status==='ACCEPTED'?'#dcfce7':'#fee2e2'}; color:${item.status==='ACCEPTED'?'#166534':'#991b1b'}; padding:2px 6px; border-radius:4px;">${item.status}</span>
                         <h4 style="margin-top:4px;">#${item.id} ${item.election_name}</h4>
                         <p><small>Ward: ${item.ward} | PU: ${item.polling_unit} (${item.pu_code})</small></p>
-                        <p><small>Audited By: <strong>${item.verified_by||'Admin'}</strong></small></p>
+                        <p><small>Verified By: <strong>${item.verified_by||'Admin'}</strong></small></p>
                     </div>`;
                 });
-                document.getElementById('auditLogList').innerHTML = html || '<p style="text-align:center; padding:15px;">No audited items.</p>';
+                document.getElementById('auditLogList').innerHTML = html || '<p style="text-align:center; padding:15px;">No audited items found.</p>';
             });
         }
 
@@ -984,10 +1168,10 @@ HTML_TEMPLATE = """
                         submission_id: activeModalSubmissionId, party_votes: votes,
                         rejected_votes: parseInt(document.getElementById('review_Rejected')?.value || 0),
                         status: status, notes: document.getElementById('reviewNotes')?.value || '',
-                        verified_by: document.getElementById('username')?.value || 'Super Admin'
+                        verified_by: document.getElementById('userDisplayName')?.innerText || 'Super Admin'
                     })
                 }).then(res => res.json()).then(res => {
-                    alert(`✓ Submission #${activeModalSubmissionId} collated as ${status}!`);
+                    alert(`✓ Submission #${activeModalSubmissionId} marked as ${status}!`);
                     closeReviewModal();
                     loadReviewQueue(); loadLiveResults(); loadWardTable();
                 });
@@ -1056,15 +1240,15 @@ HTML_TEMPLATE = """
 
         function loadAdminData(type) {
             fetch('/api/admin/' + type).then(res => res.json()).then(data => {
-                let html = `<h4 style="color:#0c235c; margin-bottom:8px;">${type.toUpperCase()} (${data.length})</h4><div class="candidate-list">`;
+                let html = `<h4 style="color:#0c235c; margin-bottom:8px;">${type.toUpperCase()} (${data.length})</h4><div class="party-counter-grid">`;
                 data.forEach(item => {
                     const img = item.photo_url || item.logo_url || '';
                     html += `
-                    <div class="candidate-card" style="display:flex; align-items:center; gap:10px;">
-                        ${img ? `<img src="${img}" style="width:36px; height:36px; object-fit:contain; border-radius:4px;">` : ''}
+                    <div class="party-card" style="display:flex; align-items:center; gap:10px;">
+                        ${img ? `<img src="${img}" style="width:36px; height:36px; object-fit:contain; border-radius:4px;">` : '👤'}
                         <div>
                             <strong>${item.full_name || item.name || item.acronym}</strong>
-                            <p><small>${item.acronym ? 'INEC Code: ' + item.inec_code : (item.party || item.role || '')}</small></p>
+                            <p><small>${item.acronym ? 'INEC Code: ' + item.inec_code : (item.role ? 'Role: ' + item.role : item.party || '')}</small></p>
                         </div>
                     </div>`;
                 });
@@ -1073,7 +1257,7 @@ HTML_TEMPLATE = """
         }
 
         function triggerSystemReset() {
-            if (confirm("Reset system tallies to 0?")) {
+            if (confirm("Reset all verified collation tallies to 0?")) {
                 fetch('/api/admin/reset-system', { method: 'POST' }).then(res => res.json()).then(res => {
                     alert(res.message); loadLiveResults(); loadWardTable();
                 });
