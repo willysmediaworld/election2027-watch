@@ -129,7 +129,7 @@ def init_db():
             ("Social Democratic Party", "SDP", "016", "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/SDP_Nigeria_Logo.png/120px-SDP_Nigeria_Logo.png"),
             ("Youth Party", "YP", "017", "https://via.placeholder.com/60?text=YP"),
             ("Young Progressives Party", "YPP", "018", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/YPP_Nigeria_Logo.png/120px-YPP_Nigeria_Logo.png"),
-            ("Zenith Labour Party", "ZLP", "019", "https://via.placeholder.com/60?text=ZLP")
+            ("Zenith Labour Party", "ZLP", "019", "https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/ZLP_Logo.png/120px-ZLP_Logo.png")
         ]
         cursor.executemany("INSERT INTO parties (name, acronym, inec_code, logo_url, is_active) VALUES (?, ?, ?, ?, 1)", all_inec_parties)
 
@@ -409,8 +409,20 @@ def get_live_collation(election_id=None):
     conn = get_db()
     cursor = conn.cursor()
 
+    # Get target election name if election_id is passed
+    target_election_name = None
+    if election_id and str(election_id).strip() != 'all':
+        cursor.execute("SELECT name FROM elections WHERE id = ? OR name = ?", (str(election_id), str(election_id)))
+        e_row = cursor.fetchone()
+        if e_row:
+            target_election_name = e_row['name']
+
     # Get candidate maps
-    cursor.execute("SELECT full_name, party, photo_url FROM candidates")
+    if target_election_name:
+        cursor.execute("SELECT full_name, party, photo_url FROM candidates WHERE election_name = ?", (target_election_name,))
+    else:
+        cursor.execute("SELECT full_name, party, photo_url FROM candidates")
+        
     candidates_map = {c['party']: {"name": c['full_name'], "photo": c['photo_url']} for c in cursor.fetchall()}
 
     # Get all 19 parties
@@ -423,8 +435,8 @@ def get_live_collation(election_id=None):
     cursor.execute("SELECT COUNT(*) FROM locations")
     total_pus_count = cursor.fetchone()[0] or 154
 
-    if election_id and str(election_id).strip() != 'all':
-        cursor.execute("SELECT party_votes, valid_votes, rejected_votes, total_votes_cast FROM submissions WHERE status = 'ACCEPTED' AND (election_id = ? OR election_name = ?)", (str(election_id), str(election_id)))
+    if target_election_name:
+        cursor.execute("SELECT party_votes, valid_votes, rejected_votes, total_votes_cast FROM submissions WHERE status = 'ACCEPTED' AND (election_id = ? OR election_name = ?)", (str(election_id), target_election_name))
     else:
         cursor.execute("SELECT party_votes, valid_votes, rejected_votes, total_votes_cast FROM submissions WHERE status = 'ACCEPTED'")
         
@@ -646,7 +658,7 @@ def handle_candidates():
 
         if not full_name or not party or not election_name:
             conn.close()
-            return jsonify({"success": False, "message": "Full Name, Party, and Election selection are required."}), 400
+            return jsonify({"success": False, "message": "Candidate Full Name, Party, and Election Category are required."}), 400
 
         photo_url = ''
         if 'photo' in request.files and request.files['photo'].filename != '':
@@ -655,11 +667,24 @@ def handle_candidates():
             file.save(filepath)
             photo_url = f"/{filepath}"
 
-        cursor.execute("INSERT INTO candidates (full_name, party, election_name, photo_url, created_at) VALUES (?, ?, ?, ?, ?)",
-                       (full_name, party, election_name, photo_url, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        # UPSERT: Update existing candidate for Party + Election, or Insert new one
+        cursor.execute("SELECT id FROM candidates WHERE party = ? AND election_name = ?", (party, election_name))
+        existing = cursor.fetchone()
+        
+        if existing:
+            if photo_url:
+                cursor.execute("UPDATE candidates SET full_name = ?, photo_url = ?, created_at = ? WHERE id = ?",
+                               (full_name, photo_url, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), existing['id']))
+            else:
+                cursor.execute("UPDATE candidates SET full_name = ?, created_at = ? WHERE id = ?",
+                               (full_name, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), existing['id']))
+        else:
+            cursor.execute("INSERT INTO candidates (full_name, party, election_name, photo_url, created_at) VALUES (?, ?, ?, ?, ?)",
+                           (full_name, party, election_name, photo_url, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+
         conn.commit()
         conn.close()
-        return jsonify({"success": True, "message": f"Candidate '{full_name}' saved successfully!"})
+        return jsonify({"success": True, "message": f"Candidate '{full_name}' ({party}) saved successfully!"})
         
     cursor.execute("SELECT * FROM candidates ORDER BY id DESC")
     rows = [dict(r) for r in cursor.fetchall()]
@@ -948,7 +973,7 @@ HTML_TEMPLATE = """
                     <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('user')">👤 Users Management</button>
                     <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('election')">📦 Elections</button>
                     <button class="btn-select-option" style="text-align:center;" onclick="loadAdminData('parties')">🏛️ Parties (19)</button>
-                    <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('candidate')">👥 Candidates</button>
+                    <button class="btn-select-option" style="text-align:center;" onclick="loadAdminData('candidates')">👥 Candidates</button>
                 </div>
                 <div id="adminDataDisplay"></div>
 
@@ -1013,12 +1038,12 @@ HTML_TEMPLATE = """
     <!-- CANDIDATE MODAL -->
     <div id="adminCandidateModal" class="modal-overlay">
         <div class="modal-card">
-            <h3>👥 Add Candidate</h3>
+            <h3>👥 Add / Edit Candidate</h3>
             <div class="input-group"><label>Candidate Full Name</label><input type="text" id="adminCandName" placeholder="e.g. Hon. John Smith"></div>
             <div class="input-group"><label>Political Party</label><select id="adminCandParty"></select></div>
             <div class="input-group"><label>Election Category</label><select id="adminCandElection"></select></div>
             <div class="input-group"><label>Candidate Photo</label><input type="file" id="adminCandPhoto" accept="image/*"></div>
-            <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateCandidate()">Save Candidate</button>
+            <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateCandidate()">Save Candidate Record</button>
             <button class="btn-secondary" style="margin-top:8px;" onclick="closeAdminModals()">Cancel</button>
         </div>
     </div>
@@ -1248,12 +1273,16 @@ HTML_TEMPLATE = """
             if (input.files && input.files[0]) {
                 selectedPhotoFile = input.files[0];
                 const r = new FileReader();
-                r.onload = e => {
-                    document.getElementById('uploadPreviewImg').src = e.target.result;
+                r.onload = function(e) {
+                    const img = document.getElementById('uploadPreviewImg');
+                    img.src = e.target.result;
                     document.getElementById('imagePreviewBox').style.display = 'block';
                     document.getElementById('btnSubmitPhoto').style.display = 'block';
                 };
-                r.readAsDataURL(input.files[0]);
+                r.onerror = function() {
+                    alert("Error reading captured photo. Please try capturing again.");
+                };
+                r.readAsDataURL(selectedPhotoFile);
             }
         }
 
@@ -1450,7 +1479,7 @@ HTML_TEMPLATE = """
                         ${img ? `<img src="${img}" style="width:36px; height:36px; object-fit:contain; border-radius:4px;">` : '👤'}
                         <div>
                             <strong>${item.full_name || item.name || item.acronym}</strong>
-                            <p><small>${item.acronym ? 'INEC Code: ' + item.inec_code : (item.role ? 'Role: ' + item.role : item.party || '')}</small></p>
+                            <p><small>${item.acronym ? 'INEC Code: ' + item.inec_code : (item.role ? 'Role: ' + item.role : 'Party: <b>' + (item.party||'') + '</b> | Election: ' + (item.election_name||''))}</small></p>
                         </div>
                     </div>`;
                 });
