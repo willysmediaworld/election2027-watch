@@ -315,19 +315,6 @@ def init_db():
             ("Ogun", "Ijebu East", "Ajebandele", "OLORUNPODO COMMUNITY PRY SCH.", "27/07/11/025")
         ]
         cursor.executemany("INSERT INTO locations (state, lga, ward, polling_unit, pu_code) VALUES (?, ?, ?, ?, ?)", ijebu_east_locations)
-
-    # Preload Candidates
-    cursor.execute("SELECT COUNT(*) FROM candidates")
-    if cursor.fetchone()[0] == 0:
-        default_candidates = [
-            ("Hon. Foluso Oladele", "APC", "Ijebu East State House of Assembly Election 2027", ""),
-            ("Hon. Segun Adebayo", "PDP", "Ijebu East State House of Assembly Election 2027", ""),
-            ("Hon. Chidi Nnamdi", "LP", "Ijebu East State House of Assembly Election 2027", ""),
-            ("Hon. Rabiu Olanrewaju", "NNPP", "Ijebu East State House of Assembly Election 2027", ""),
-            ("Hon. Adebisi Samson", "SDP", "Ijebu East State House of Assembly Election 2027", "")
-        ]
-        cursor.executemany("INSERT INTO candidates (full_name, party, election_name, photo_url, created_at) VALUES (?, ?, ?, ?, ?)", 
-                           [(c[0], c[1], c[2], c[3], datetime.now().strftime("%Y-%m-%d %H:%M:%S")) for c in default_candidates])
         
     conn.commit()
     conn.close()
@@ -465,7 +452,7 @@ def get_live_collation(election_id=None):
         top_party = max(party_totals, key=party_totals.get)
         top_votes = party_totals[top_party]
         top_pct = round((top_votes / grand_valid * 100), 1)
-        cand_info = candidates_map.get(top_party, {"name": f"{top_party} Candidate", "photo": ""})
+        cand_info = candidates_map.get(top_party, {"name": "Candidate Not Assigned", "photo": ""})
         leader = {
             "candidate": cand_info["name"], "party": top_party, "votes": top_votes,
             "percentage": f"{top_pct}%", "photo": cand_info["photo"], "party_logo": parties_logo_map.get(top_party, "")
@@ -475,7 +462,7 @@ def get_live_collation(election_id=None):
     standings = []
     for party_acronym, count in party_totals.items():
         pct = round((count / grand_valid * 100), 1) if grand_valid > 0 else 0.0
-        cand_info = candidates_map.get(party_acronym, {"name": f"{party_acronym} Candidate", "photo": ""})
+        cand_info = candidates_map.get(party_acronym, {"name": "Candidate Not Assigned", "photo": ""})
         standings.append({
             "candidate": cand_info["name"],
             "party": party_acronym,
@@ -667,7 +654,7 @@ def handle_candidates():
             file.save(filepath)
             photo_url = f"/{filepath}"
 
-        # UPSERT: Update existing candidate for Party + Election, or Insert new one
+        # UPSERT: Check if candidate already exists for Party + Election Category
         cursor.execute("SELECT id FROM candidates WHERE party = ? AND election_name = ?", (party, election_name))
         existing = cursor.fetchone()
         
@@ -684,7 +671,7 @@ def handle_candidates():
 
         conn.commit()
         conn.close()
-        return jsonify({"success": True, "message": f"Candidate '{full_name}' ({party}) saved successfully!"})
+        return jsonify({"success": True, "message": f"Candidate '{full_name}' ({party}) successfully updated!"})
         
     cursor.execute("SELECT * FROM candidates ORDER BY id DESC")
     rows = [dict(r) for r in cursor.fetchall()]
@@ -849,7 +836,7 @@ HTML_TEMPLATE = """
                 <div class="info-box"><p>Real-time vote tallies for all 19 registered INEC political parties across Ijebu East LGA (154 Polling Units).</p></div>
 
                 <div class="input-group">
-                    <label>Select Election</label>
+                    <label>Select Election Category</label>
                     <select id="liveElectionSelect" onchange="onLiveElectionChanged()"></select>
                 </div>
 
@@ -932,16 +919,9 @@ HTML_TEMPLATE = """
                         <p id="summaryWardPU" style="font-size:12px; color:#a8dadc; margin-top:4px;"></p>
                     </div>
 
-                    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;">
-                        <!-- DIRECT CAMERA CAPTURE -->
-                        <label class="btn-action" style="text-align:center; background:#16a34a; cursor:pointer;">
-                            📷 Snap Directly with Camera
-                            <input type="file" id="ec8aCamera" accept="image/*" capture="environment" style="display:none;" onchange="previewUploadImage(this)">
-                        </label>
-
-                        <!-- PHOTO GALLERY SELECTION -->
-                        <label class="btn-action" style="text-align:center; background:#2563eb; cursor:pointer;">
-                            📁 Choose Photo from Gallery
+                    <div style="margin-bottom:15px;">
+                        <label class="btn-action" style="display:block; text-align:center; background:#2563eb; cursor:pointer;">
+                            📷 Choose Photo / Capture Image
                             <input type="file" id="ec8aPhoto" accept="image/*" style="display:none;" onchange="previewUploadImage(this)">
                         </label>
                     </div>
@@ -950,7 +930,7 @@ HTML_TEMPLATE = """
                         <img id="uploadPreviewImg" src="" style="width:100%; max-height:250px; object-fit:contain; border-radius:8px; border:2px solid #0c235c;">
                     </div>
 
-                    <button id="btnSubmitPhoto" class="btn-submit" style="display:none;" onclick="submitPhotoOnly()">📤 Submit Result for Sequential Review</button>
+                    <button id="btnSubmitPhoto" class="btn-submit" style="display:none;" onclick="submitPhotoOnly()">📤 Submit Result Sheet for Review</button>
                     <button class="btn-secondary" style="margin-top:10px;" onclick="goToUploadStep(4)">← Back</button>
                 </div>
             </section>
@@ -970,10 +950,10 @@ HTML_TEMPLATE = """
             <section id="tab-admin" class="tab-content">
                 <div class="section-heading"><h2>⚙️ Administration Panel</h2></div>
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:15px;">
-                    <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('user')">👤 Users Management</button>
+                    <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('user')">👤 Users</button>
                     <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('election')">📦 Elections</button>
                     <button class="btn-select-option" style="text-align:center;" onclick="loadAdminData('parties')">🏛️ Parties (19)</button>
-                    <button class="btn-select-option" style="text-align:center;" onclick="loadAdminData('candidates')">👥 Candidates</button>
+                    <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('candidate')">👥 Candidates Management</button>
                 </div>
                 <div id="adminDataDisplay"></div>
 
@@ -1035,14 +1015,26 @@ HTML_TEMPLATE = """
         </div>
     </div>
 
-    <!-- CANDIDATE MODAL -->
+    <!-- CANDIDATE ADD/UPDATE MODAL -->
     <div id="adminCandidateModal" class="modal-overlay">
         <div class="modal-card">
-            <h3>👥 Add / Edit Candidate</h3>
-            <div class="input-group"><label>Candidate Full Name</label><input type="text" id="adminCandName" placeholder="e.g. Hon. John Smith"></div>
-            <div class="input-group"><label>Political Party</label><select id="adminCandParty"></select></div>
-            <div class="input-group"><label>Election Category</label><select id="adminCandElection"></select></div>
-            <div class="input-group"><label>Candidate Photo</label><input type="file" id="adminCandPhoto" accept="image/*"></div>
+            <h3>👥 Add / Update Candidate</h3>
+            <div class="input-group">
+                <label>Candidate Full Name</label>
+                <input type="text" id="adminCandName" placeholder="Enter Full Name (e.g. Hon. John Smith)">
+            </div>
+            <div class="input-group">
+                <label>Political Party (All 19 Parties)</label>
+                <select id="adminCandParty"></select>
+            </div>
+            <div class="input-group">
+                <label>Election Category</label>
+                <select id="adminCandElection"></select>
+            </div>
+            <div class="input-group">
+                <label>Candidate Photograph (Optional)</label>
+                <input type="file" id="adminCandPhoto" accept="image/*">
+            </div>
             <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateCandidate()">Save Candidate Record</button>
             <button class="btn-secondary" style="margin-top:8px;" onclick="closeAdminModals()">Cancel</button>
         </div>
@@ -1111,7 +1103,7 @@ HTML_TEMPLATE = """
                     if (tab === 'results') loadWardTable();
                     if (tab === 'upload') loadUploadWizardData();
                     if (tab === 'review') loadReviewQueue();
-                    if (tab === 'admin') loadAdminData('users');
+                    if (tab === 'admin') loadAdminData('candidates');
                 });
             });
         });
@@ -1200,7 +1192,7 @@ HTML_TEMPLATE = """
                                 ${item.party_logo ? `<img src="${item.party_logo}" style="width:36px; height:36px; object-fit:contain;">` : '🏛️'}
                                 <div>
                                     <h4 style="font-size:15px;">${item.party} - ${item.party_full_name}</h4>
-                                    <p style="font-size:11px; color:#64748b;">${item.candidate}</p>
+                                    <p style="font-size:11px; color:#2563eb; font-weight:700;">Candidate: ${item.candidate}</p>
                                 </div>
                             </div>
                             <div style="text-align:right;">
@@ -1279,15 +1271,12 @@ HTML_TEMPLATE = """
                     document.getElementById('imagePreviewBox').style.display = 'block';
                     document.getElementById('btnSubmitPhoto').style.display = 'block';
                 };
-                r.onerror = function() {
-                    alert("Error reading captured photo. Please try capturing again.");
-                };
                 r.readAsDataURL(selectedPhotoFile);
             }
         }
 
         function submitPhotoOnly() {
-            if (!selectedPhotoFile) return alert("Select or capture a photograph first.");
+            if (!selectedPhotoFile) return alert("Please select or take a photo first.");
             const fd = new FormData();
             fd.append('photo', selectedPhotoFile);
             fd.append('election_id', currentUploadData.election_id);
@@ -1326,7 +1315,7 @@ HTML_TEMPLATE = """
                     <div class="party-card" style="border-left-color:#d97706; margin-bottom:10px;">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <span style="font-size:10px; font-weight:800; background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px;">PENDING VERIFICATION</span>
-                            <span style="font-size:11px; font-weight:700; color:#2563eb;">👉 Assigned to: ${item.assigned_to || 'Super Admin'}</span>
+                            <span style="font-size:11px; font-weight:700; color:#2563eb;">👉 Assigned: ${item.assigned_to || 'Super Admin'}</span>
                         </div>
                         <h4 style="margin-top:6px;">#${item.id} ${item.election_name}</h4>
                         <p><small>Ward: ${item.ward} | PU: ${item.polling_unit} (${item.pu_code})</small></p>
@@ -1442,7 +1431,7 @@ HTML_TEMPLATE = """
             const election = document.getElementById('adminCandElection').value;
 
             if (!name || !party || !election) {
-                return alert("Please enter the Candidate Name and select both Party and Election Category.");
+                return alert("Please fill in Candidate Name and select both Party and Election Category.");
             }
 
             const fd = new FormData();
@@ -1462,11 +1451,12 @@ HTML_TEMPLATE = """
                     document.getElementById('adminCandName').value = '';
                     closeAdminModals();
                     loadAdminData('candidates');
+                    loadLiveResults();
                 } else {
-                    alert(res.message || "Error creating candidate.");
+                    alert(res.message || "Error updating candidate.");
                 }
             })
-            .catch(err => alert("Submission failed: " + err));
+            .catch(err => alert("Submission error: " + err));
         }
 
         function loadAdminData(type) {
