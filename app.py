@@ -126,70 +126,186 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO parties (name, acronym, inec_code, logo_url, is_active) VALUES (?, ?, ?, ?, 1)", all_inec_parties)
 
-    # Preload Official Wards & Polling Units across ALL 11 Wards in Ijebu East LGA
+    # Preload ALL 11 WARDS AND EXACT 154 POLLING UNITS FOR IJEBU EAST LGA
     cursor.execute("SELECT COUNT(*) FROM locations")
-    if cursor.fetchone()[0] == 0:
+    if cursor.fetchone()[0] < 154:
+        cursor.execute("DELETE FROM locations")
         ijebu_east_locations = [
-            # Ward 1: Ijebu Mushin I
-            ("Ogun", "Ijebu East", "Ijebu Mushin I", "St. Mary Primary School, Mushin", "27/07/01/001"),
-            ("Ogun", "Ijebu East", "Ijebu Mushin I", "Town Hall, Mushin", "27/07/01/002"),
-            ("Ogun", "Ijebu East", "Ijebu Mushin I", "Open Space, Igbaga", "27/07/01/003"),
-            ("Ogun", "Ijebu East", "Ijebu Mushin I", "Primary School, Tedo", "27/07/01/004"),
+            # WARD 01 — IJEBU MUSHIN I (12 PUs)
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "ODOSEGBUREN", "27/07/01/001"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "IDONA CENTRAL", "27/07/01/002"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "ST. PETERS CLEVER PRY. SCH.", "27/07/01/003"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "EWUREN SQUARE", "27/07/01/004"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "LOCAL GOVT. PRY. SCHOOL", "27/07/01/005"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "ST. ANDREWS SCH. IMUWEN I", "27/07/01/006"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "ST. ANDREWS SCH. IMUWEN II", "27/07/01/007"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "FEDERAL TECHNICAL ITA MOGIRI", "27/07/01/008"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "ESURE JUNCTION", "27/07/01/009"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "EHINADE COMM. PRY SCH. IDOMODU", "27/07/01/010"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "OPEN SPACE AT ST ROAD SQUARE", "27/07/01/011"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "MOSLEM PRY. SCH., ESURE", "27/07/01/012"),
 
-            # Ward 2: Ijebu Mushin II
-            ("Ogun", "Ijebu East", "Ijebu Mushin II", "Anglican Primary School, Mushin", "27/07/02/001"),
-            ("Ogun", "Ijebu East", "Ijebu Mushin II", "Customary Court Hall, Mushin", "27/07/02/002"),
-            ("Ogun", "Ijebu East", "Ijebu Mushin II", "Open Space, Itun-Nla", "27/07/02/003"),
+            # WARD 02 — IJEBU MUSHIN II (13 PUs)
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "MUSHIN MARKET SQUARE", "27/07/02/001"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "ST. MARY’S PRY OKEPO I", "27/07/02/002"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "ST. MARY’S PRY OKEPO II", "27/07/02/003"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "L.G. SCHOOL, KOKUNESERE", "27/07/02/004"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "NEAR HEALTH CENTRE ILODO", "27/07/02/005"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "AJEBO UNITED PRY. SCH. IKALA", "27/07/02/006"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "OPEN SPACE IN FRONT OF JEJENIWA’S HOUSE", "27/07/02/007"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "TOJORO JUNCTION", "27/07/02/008"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "ST. MARY’S SCH. EXTENSION", "27/07/02/009"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "IDOKUNUSI CENTRE", "27/07/02/010"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "FRONTAGE OF ADESANYA’S HOUSE ILAGUNJO", "27/07/02/011"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "IMUSHIN HEALTH CENTER", "27/07/02/012"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "IDOKUNUSI TOWN HALL", "27/07/02/013"),
 
-            # Ward 3: Ijebu Ife I
-            ("Ogun", "Ijebu East", "Ijebu Ife I", "Moslem Primary School, Ife", "27/07/03/001"),
-            ("Ogun", "Ijebu East", "Ijebu Ife I", "Customary Court, Ife", "27/07/03/002"),
-            ("Ogun", "Ijebu East", "Ijebu Ife I", "St. Gerard Primary School, Ife", "27/07/03/003"),
-            ("Ogun", "Ijebu East", "Ijebu Ife I", "Open Space, Oke-Ife", "27/07/03/004"),
+            # WARD 03 — IJEBU IFE I (14 PUs)
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "ITAKO SQUARE", "27/07/03/001"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "ST. LOUIS CATH. PRY. SCH. IFE", "27/07/03/002"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "ITUNMODU SQUARE", "27/07/03/003"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "ANG. PRY SCH. IJEBU-IFE", "27/07/03/004"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "BAPTIST SCHOOL II IJEBU IFE", "27/07/03/005"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "MOBORODE", "27/07/03/006"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "ITORO/ODELA SQUARE", "27/07/03/007"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "IROWO SQUARE", "27/07/03/008"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "ITORO/ODATA SQUARE", "27/07/03/009"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "IGBODU", "27/07/03/010"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "BESIDE OBADA MARKET", "27/07/03/011"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "ITAKO OLUWERI SQUARE", "27/07/03/012"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "BAPTIST SCHOOL II EXTENSION", "27/07/03/013"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "MOBORODE SQUARE", "27/07/03/014"),
 
-            # Ward 4: Ijebu Ife II
-            ("Ogun", "Ijebu East", "Ijebu Ife II", "St. Louis Primary School, Ife", "27/07/04/001"),
-            ("Ogun", "Ijebu East", "Ijebu Ife II", "Community Hall, Agbowa Ife", "27/07/04/002"),
-            ("Ogun", "Ijebu East", "Ijebu Ife II", "Open Space, Ayede Ife", "27/07/04/003"),
+            # WARD 04 — IJEBU IFE II (12 PUs)
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "TOWN HALL IJEBU IFE I", "27/07/04/001"),
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "TOWN HALL IJEBU IFE II", "27/07/04/002"),
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "COURT HALL", "27/07/04/003"),
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "ODUDUWA SQUARE", "27/07/04/004"),
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "TIMOROWO SQUARE", "27/07/04/005"),
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "MOSLEM SCHOOL II", "27/07/04/006"),
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "TIROSOGUN SQUARE", "27/07/04/007"),
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "ABIDAGBA VILLAGE", "27/07/04/008"),
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "EHINADE ILASE", "27/07/04/009"),
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "SQUARE NEAR MOSQUE", "27/07/04/010"),
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "IWAYA ROAD", "27/07/04/011"),
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "BAPTIST SCH. I, OKE IFE", "27/07/04/012"),
 
-            # Ward 5: Itele
-            ("Ogun", "Ijebu East", "Itele", "Itele High School, Itele", "27/07/05/001"),
-            ("Ogun", "Ijebu East", "Itele", "Market Square, Itele", "27/07/05/002"),
-            ("Ogun", "Ijebu East", "Itele", "St. John Primary School, Itele", "27/07/05/003"),
-            ("Ogun", "Ijebu East", "Itele", "Community Grammar School, Itele", "27/07/05/004"),
+            # WARD 05 — OWU (16 PUs)
+            ("Ogun", "Ijebu East", "Owu", "AGLICAN PRY. SCHOOL OWU I", "27/07/05/001"),
+            ("Ogun", "Ijebu East", "Owu", "AGLICAN PRY. SCHOOL OWU II", "27/07/05/002"),
+            ("Ogun", "Ijebu East", "Owu", "COMMUNITY PRY. SCH. ONIPETESI", "27/07/05/003"),
+            ("Ogun", "Ijebu East", "Owu", "L.G. SCH. EGBEDA", "27/07/05/004"),
+            ("Ogun", "Ijebu East", "Owu", "ABA OKONZIN JUNCTION", "27/07/05/005"),
+            ("Ogun", "Ijebu East", "Owu", "ANG. PRY. SCH. II AGO OWU", "27/07/05/006"),
+            ("Ogun", "Ijebu East", "Owu", "AJEPODO", "27/07/05/007"),
+            ("Ogun", "Ijebu East", "Owu", "TOGUNMAGA", "27/07/05/008"),
+            ("Ogun", "Ijebu East", "Owu", "GBAMUGBAMU", "27/07/05/009"),
+            ("Ogun", "Ijebu East", "Owu", "ABU SORO", "27/07/05/010"),
+            ("Ogun", "Ijebu East", "Owu", "TOWN HALL, ILORO", "27/07/05/011"),
+            ("Ogun", "Ijebu East", "Owu", "AGBORO SQUARE", "27/07/05/012"),
+            ("Ogun", "Ijebu East", "Owu", "ABA-EYO MARKET SQUARE", "27/07/05/013"),
+            ("Ogun", "Ijebu East", "Owu", "ISIBA SQUARE", "27/07/05/014"),
+            ("Ogun", "Ijebu East", "Owu", "ERINWONRAN MARKET SQUARE", "27/07/05/015"),
+            ("Ogun", "Ijebu East", "Owu", "OLOMIKOKO SQUARE", "27/07/05/016"),
 
-            # Ward 6: Ogbere
-            ("Ogun", "Ijebu East", "Ogbere", "LGA Secretariat, Ogbere", "27/07/06/001"),
-            ("Ogun", "Ijebu East", "Ogbere", "Community Hall, Ogbere", "27/07/06/002"),
-            ("Ogun", "Ijebu East", "Ogbere", "St. Mark Primary School, Ogbere", "27/07/06/003"),
-            ("Ogun", "Ijebu East", "Ogbere", "Open Space, Station Road Ogbere", "27/07/06/004"),
+            # WARD 06 — IKIJA (8 PUs)
+            ("Ogun", "Ijebu East", "Ikija", "ANGLICAN PRY. SCH. IKIJA", "27/07/06/001"),
+            ("Ogun", "Ijebu East", "Ikija", "ISOMU SQUARE", "27/07/06/002"),
+            ("Ogun", "Ijebu East", "Ikija", "L.G. SCHOOL ISIRE", "27/07/06/003"),
+            ("Ogun", "Ijebu East", "Ikija", "COURT HALL, IKIJA", "27/07/06/004"),
+            ("Ogun", "Ijebu East", "Ikija", "ANGLICAN PRY. SCH. IGAN IPABI", "27/07/06/005"),
+            ("Ogun", "Ijebu East", "Ikija", "ODOMEFI SQUARE", "27/07/06/006"),
+            ("Ogun", "Ijebu East", "Ikija", "OLOKOKO SQUARE", "27/07/06/007"),
+            ("Ogun", "Ijebu East", "Ikija", "IMARERE SQUARE", "27/07/06/008"),
 
-            # Ward 7: Imobi I
-            ("Ogun", "Ijebu East", "Imobi I", "St. Peter Primary School, Imobi", "27/07/07/001"),
-            ("Ogun", "Ijebu East", "Imobi I", "Open Space, Malara", "27/07/07/002"),
-            ("Ogun", "Ijebu East", "Imobi I", "Community Hall, Fotedo", "27/07/07/003"),
-            ("Ogun", "Ijebu East", "Imobi I", "Primary School, Ebute Imobi", "27/07/07/004"),
+            # WARD 07 — ITELE (17 PUs)
+            ("Ogun", "Ijebu East", "Itele", "ST. JOHN’S SCH. ITELE I", "27/07/07/001"),
+            ("Ogun", "Ijebu East", "Itele", "ST. JOHN’S SCH. ITELE II", "27/07/07/002"),
+            ("Ogun", "Ijebu East", "Itele", "CATH. PRY. SCH. ITELE", "27/07/07/003"),
+            ("Ogun", "Ijebu East", "Itele", "ITELE MOTOR PARK", "27/07/07/004"),
+            ("Ogun", "Ijebu East", "Itele", "ST. JAMES SCH. ATOYO", "27/07/07/005"),
+            ("Ogun", "Ijebu East", "Itele", "ST. PETERS SCH. OKO-EKO", "27/07/07/006"),
+            ("Ogun", "Ijebu East", "Itele", "ST. JOHN’S SCH. LUMAFON", "27/07/07/007"),
+            ("Ogun", "Ijebu East", "Itele", "COMM. PRY. SCH. IMEGUN", "27/07/07/008"),
+            ("Ogun", "Ijebu East", "Itele", "OPP. HEALTH POST TIGBORI", "27/07/07/009"),
+            ("Ogun", "Ijebu East", "Itele", "COMM. SQUARE AWOTUNDE", "27/07/07/010"),
+            ("Ogun", "Ijebu East", "Itele", "AGERIGE", "27/07/07/011"),
+            ("Ogun", "Ijebu East", "Itele", "ODOMORE ROUND ABOUT", "27/07/07/012"),
+            ("Ogun", "Ijebu East", "Itele", "DAGUNJA OPEN SPACE", "27/07/07/013"),
+            ("Ogun", "Ijebu East", "Itele", "ITELE TOWN HALL", "27/07/07/014"),
+            ("Ogun", "Ijebu East", "Itele", "ITELE HEALTH CENTER", "27/07/07/015"),
+            ("Ogun", "Ijebu East", "Itele", "ATOYO MATERNITY CENTER", "27/07/07/016"),
+            ("Ogun", "Ijebu East", "Itele", "MOTOR PARK, OGBERE JUNCTION", "27/07/07/017"),
 
-            # Ward 8: Imobi II
-            ("Ogun", "Ijebu East", "Imobi II", "St. Paul Primary School, Macho", "27/07/08/001"),
-            ("Ogun", "Ijebu East", "Imobi II", "Open Space, Oke-Owa Imobi", "27/07/08/002"),
-            ("Ogun", "Ijebu East", "Imobi II", "Primary School, Odomagbo", "27/07/08/003"),
+            # WARD 08 — OGBERE (21 PUs)
+            ("Ogun", "Ijebu East", "Ogbere", "PALACE FRONTAGE", "27/07/08/001"),
+            ("Ogun", "Ijebu East", "Ogbere", "NEAR MOTOR PARK OGBERE", "27/07/08/002"),
+            ("Ogun", "Ijebu East", "Ogbere", "ST. MARY SCHOOL OGBERE I", "27/07/08/003"),
+            ("Ogun", "Ijebu East", "Ogbere", "ST. MARY SCHOOL OGBERE II", "27/07/08/004"),
+            ("Ogun", "Ijebu East", "Ogbere", "COMM. PRY. SCHOOL KAJOLA", "27/07/08/005"),
+            ("Ogun", "Ijebu East", "Ogbere", "ST. PAULS SCH. URO", "27/07/08/006"),
+            ("Ogun", "Ijebu East", "Ogbere", "ST. PAULS SCH. OGURU", "27/07/08/007"),
+            ("Ogun", "Ijebu East", "Ogbere", "MOBORODE VILLAGE", "27/07/08/008"),
+            ("Ogun", "Ijebu East", "Ogbere", "J. 3", "27/07/08/009"),
+            ("Ogun", "Ijebu East", "Ogbere", "ST. JOHN’S SCH. KOREDE", "27/07/08/010"),
+            ("Ogun", "Ijebu East", "Ogbere", "LOCAL GOVERNMENT SCH. IMAYAN", "27/07/08/011"),
+            ("Ogun", "Ijebu East", "Ogbere", "ORITA IMOBI", "27/07/08/012"),
+            ("Ogun", "Ijebu East", "Ogbere", "TRIANGA", "27/07/08/013"),
+            ("Ogun", "Ijebu East", "Ogbere", "OPEN SPACE BESIDE ANGLICAN CHURCH", "27/07/08/014"),
+            ("Ogun", "Ijebu East", "Ogbere", "MATERNITY CENTER OGBERE", "27/07/08/015"),
+            ("Ogun", "Ijebu East", "Ogbere", "OGBERE SHOPPING COMPLEX", "27/07/08/016"),
+            ("Ogun", "Ijebu East", "Ogbere", "ST. BRENDANS GRAMMAR SCH., OGBERE", "27/07/08/017"),
+            ("Ogun", "Ijebu East", "Ogbere", "COMMUNITY PRY. SCH., OKEMISHA", "27/07/08/018"),
+            ("Ogun", "Ijebu East", "Ogbere", "OPEN SPACE, BETWEEN", "27/07/08/019"),
+            ("Ogun", "Ijebu East", "Ogbere", "COMMUNITY PRY SCH. OGUNGBO", "27/07/08/020"),
+            ("Ogun", "Ijebu East", "Ogbere", "COMMUNITY PRY. SCH., AJEDE", "27/07/08/021"),
 
-            # Ward 9: Owu
-            ("Ogun", "Ijebu East", "Owu", "Owu Community Primary School, Owu", "27/07/09/001"),
-            ("Ogun", "Ijebu East", "Owu", "Town Hall, Owu Ikija", "27/07/09/002"),
-            ("Ogun", "Ijebu East", "Owu", "Open Space, Owu Waterside Road", "27/07/09/003"),
+            # WARD 09 — IMOBI I (8 PUs)
+            ("Ogun", "Ijebu East", "Imobi I", "ST. MARY’S SCHOOL FOWOSEJE I", "27/07/09/001"),
+            ("Ogun", "Ijebu East", "Imobi I", "ST. MARY’S SCHOOL FOWOSEJE II", "27/07/09/002"),
+            ("Ogun", "Ijebu East", "Imobi I", "CATH. PRY. SCH. FOTEDO", "27/07/09/003"),
+            ("Ogun", "Ijebu East", "Imobi I", "DENUREN", "27/07/09/004"),
+            ("Ogun", "Ijebu East", "Imobi I", "MOSLEM PRY. SCH. ITA PAMPA", "27/07/09/005"),
+            ("Ogun", "Ijebu East", "Imobi I", "MOSLEM PRY. SCH. TERELU", "27/07/09/006"),
+            ("Ogun", "Ijebu East", "Imobi I", "TOLIWO OKE-IMOBI", "27/07/09/007"),
+            ("Ogun", "Ijebu East", "Imobi I", "MAFOWOKU", "27/07/09/008"),
 
-            # Ward 10: Ikija
-            ("Ogun", "Ijebu East", "Ikija", "Ikija Community High School", "27/07/10/001"),
-            ("Ogun", "Ijebu East", "Ikija", "St. Luke Primary School, Ikija", "27/07/10/002"),
-            ("Ogun", "Ijebu East", "Ikija", "Open Space, Abigi Road Ikija", "27/07/10/003"),
+            # WARD 10 — IMOBI II (8 PUs)
+            ("Ogun", "Ijebu East", "Imobi II", "CATH. SCHOOL ITASIN", "27/07/10/001"),
+            ("Ogun", "Ijebu East", "Imobi II", "CATH. SCHOOL EBUTE-IMOBI", "27/07/10/002"),
+            ("Ogun", "Ijebu East", "Imobi II", "ANG. PRY. SCH. OKI-ARAROMI", "27/07/10/003"),
+            ("Ogun", "Ijebu East", "Imobi II", "CATH. SCH. OKI-IGBODE I", "27/07/10/004"),
+            ("Ogun", "Ijebu East", "Imobi II", "CATH. SCH. OKI-IGBODE II", "27/07/10/005"),
+            ("Ogun", "Ijebu East", "Imobi II", "ST. COLUMBUS OKE-MAKUN", "27/07/10/006"),
+            ("Ogun", "Ijebu East", "Imobi II", "TOGUNSELU SQUARE", "27/07/10/007"),
+            ("Ogun", "Ijebu East", "Imobi II", "TOTUNBA", "27/07/10/008"),
 
-            # Ward 11: Ajebandele
-            ("Ogun", "Ijebu East", "Ajebandele", "Ajebandele Community Primary School", "27/07/11/001"),
-            ("Ogun", "Ijebu East", "Ajebandele", "Open Space, Ajebandele Market", "27/07/11/002"),
-            ("Ogun", "Ijebu East", "Ajebandele", "Open Space, J4 Camp Ajebandele", "27/07/11/003"),
-            ("Ogun", "Ijebu East", "Ajebandele", "Primary School, Forestry Camp", "27/07/11/004")
+            # WARD 11 — AJEBANDELE (25 PUs)
+            ("Ogun", "Ijebu East", "Ajebandele", "COMMUNITY PRY. SCHOOL ORITA J4", "27/07/11/001"),
+            ("Ogun", "Ijebu East", "Ajebandele", "AJEGBENDE", "27/07/11/002"),
+            ("Ogun", "Ijebu East", "Ajebandele", "ORISUMBARE", "27/07/11/003"),
+            ("Ogun", "Ijebu East", "Ajebandele", "ST. SAVIOUR’S SCH. AJEBANDELE I", "27/07/11/004"),
+            ("Ogun", "Ijebu East", "Ajebandele", "ST. SAVIOUR’S SCH. AJEBANDELE II", "27/07/11/005"),
+            ("Ogun", "Ijebu East", "Ajebandele", "COMM. PRY. SCH. OLOJI", "27/07/11/006"),
+            ("Ogun", "Ijebu East", "Ajebandele", "COMM. PRY. SCH. ABERU", "27/07/11/007"),
+            ("Ogun", "Ijebu East", "Ajebandele", "ST. PETERS SCH. FOWOWA J4", "27/07/11/008"),
+            ("Ogun", "Ijebu East", "Ajebandele", "OPEN SPACE AT ALAFIA CAMP", "27/07/11/009"),
+            ("Ogun", "Ijebu East", "Ajebandele", "AJELANWA", "27/07/11/010"),
+            ("Ogun", "Ijebu East", "Ajebandele", "MOYAFOKO TOWN HALL", "27/07/11/011"),
+            ("Ogun", "Ijebu East", "Ajebandele", "AGO/SULE TOWN HALL", "27/07/11/012"),
+            ("Ogun", "Ijebu East", "Ajebandele", "BASHIRU TOWN HALL", "27/07/11/013"),
+            ("Ogun", "Ijebu East", "Ajebandele", "OLOKE ALLI TOWN HALL", "27/07/11/014"),
+            ("Ogun", "Ijebu East", "Ajebandele", "OWODE COMMUNITY PRY. SCH.", "27/07/11/015"),
+            ("Ogun", "Ijebu East", "Ajebandele", "TEMIDIRE TOWN HALL", "27/07/11/016"),
+            ("Ogun", "Ijebu East", "Ajebandele", "AJEBO TOWN HALL", "27/07/11/017"),
+            ("Ogun", "Ijebu East", "Ajebandele", "LUKOSI COMMUNITY PRIMARY SCHOOL", "27/07/11/018"),
+            ("Ogun", "Ijebu East", "Ajebandele", "LAAGAN TOWN HALL", "27/07/11/019"),
+            ("Ogun", "Ijebu East", "Ajebandele", "COMMUNITY PRIMARY SCHOOL, IDI EGUN SITE", "27/07/11/020"),
+            ("Ogun", "Ijebu East", "Ajebandele", "COMMUNITY PRIMARY SCHOOL, ADEMOLA IDI EGUN", "27/07/11/021"),
+            ("Ogun", "Ijebu East", "Ajebandele", "AJELANWA MARKET SQUARE", "27/07/11/022"),
+            ("Ogun", "Ijebu East", "Ajebandele", "ABA SADIKU TOWN HALL", "27/07/11/023"),
+            ("Ogun", "Ijebu East", "Ajebandele", "AFUYE/OGBARA TOWN HALL", "27/07/11/024"),
+            ("Ogun", "Ijebu East", "Ajebandele", "OLORUNPODO COMMUNITY PRY SCH.", "27/07/11/025")
         ]
         cursor.executemany("INSERT INTO locations (state, lga, ward, polling_unit, pu_code) VALUES (?, ?, ?, ?, ?)", ijebu_east_locations)
 
@@ -264,9 +380,9 @@ def get_live_collation(election_id=None):
     parties_logo_map = {p['acronym']: p['logo_url'] for p in all_parties}
     parties_name_map = {p['acronym']: p['name'] for p in all_parties}
 
-    # Fetch total locations count
+    # Fetch total locations count (Exact 154 PUs)
     cursor.execute("SELECT COUNT(*) FROM locations")
-    total_pus_count = cursor.fetchone()[0] or 39
+    total_pus_count = cursor.fetchone()[0] or 154
 
     if election_id and election_id != 'all':
         cursor.execute("SELECT party_votes, valid_votes, rejected_votes, total_votes_cast FROM submissions WHERE status = 'ACCEPTED' AND election_id = ?", (election_id,))
@@ -355,7 +471,6 @@ def api_login():
             "role": user['role']
         })
     else:
-        # Fallback role based on name keyword if user doesn't exist in DB
         role = "Viewer"
         if "super" in username.lower() or "rotimi" in username.lower():
             role = "Super Admin"
@@ -507,7 +622,7 @@ def handle_candidates():
 def get_wards():
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT ward FROM locations ORDER BY ward ASC")
+    cursor.execute("SELECT DISTINCT ward FROM locations ORDER BY id ASC")
     wards = [r['ward'] for r in cursor.fetchall()]
     conn.close()
     return jsonify(wards)
@@ -517,7 +632,7 @@ def get_pus():
     ward = request.args.get('ward', '')
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT polling_unit, pu_code FROM locations WHERE ward = ? ORDER BY polling_unit ASC", (ward,))
+    cursor.execute("SELECT polling_unit, pu_code FROM locations WHERE ward = ? ORDER BY id ASC", (ward,))
     pus = [dict(r) for r in cursor.fetchall()]
     conn.close()
     return jsonify(pus)
@@ -633,7 +748,7 @@ HTML_TEMPLATE = """
 
             <div style="margin-top:15px; font-size:11px; text-align:left; color:#64748b; background:#f8fafc; padding:10px; border-radius:8px; width:100%;">
                 <strong>Demo Quick Sign-In Usernames:</strong><br>
-                • <code>superadmin</code> (Super Admin - All Features)<br>
+                • <code>superadmin</code> (Super Admin - All Tabs Access)<br>
                 • <code>admin</code> (Admin - All except Admin Settings)<br>
                 • <code>field</code> (Field Officer - Live, Results, Upload)<br>
                 • <code>viewer</code> (Viewer - Read Only)
@@ -666,7 +781,7 @@ HTML_TEMPLATE = """
             <!-- TAB 1: LIVE FEED & REAL-TIME PARTY COUNTER -->
             <section id="tab-live" class="tab-content active">
                 <div class="section-heading"><h2>📊 Live Verified Collation</h2></div>
-                <div class="info-box"><p>Real-time vote tallies for all 19 registered INEC political parties.</p></div>
+                <div class="info-box"><p>Real-time vote tallies for all 19 registered INEC political parties across Ijebu East LGA (154 Polling Units).</p></div>
 
                 <div class="input-group">
                     <label>Select Election</label>
@@ -689,7 +804,7 @@ HTML_TEMPLATE = """
                     <div class="stat-card"><span id="statTurnout" class="stat-value">0.0%</span><span class="stat-label">TURNOUT</span></div>
                     <div class="stat-card"><span id="statValid" class="stat-value">0</span><span class="stat-label">VALID</span></div>
                     <div class="stat-card"><span id="statRejected" class="stat-value">0</span><span class="stat-label">REJECTED</span></div>
-                    <div class="stat-card"><span id="statPUs" class="stat-value">0/39</span><span class="stat-label">PUS VERIFIED</span></div>
+                    <div class="stat-card"><span id="statPUs" class="stat-value">0/154</span><span class="stat-label">PUS VERIFIED</span></div>
                 </div>
 
                 <div class="progress-section">
@@ -931,7 +1046,6 @@ HTML_TEMPLATE = """
             document.querySelector('.nav-item[data-tab="live"]').click();
         }
 
-        // Apply 4-Level RBAC Permissions UI Logic
         function applyRolePermissions(role, name) {
             currentUserRole = role;
             document.getElementById('userDisplayName').innerText = name;
@@ -941,7 +1055,6 @@ HTML_TEMPLATE = """
             const btnReview = document.getElementById('navReviewBtn');
             const btnAdmin = document.getElementById('navAdminBtn');
 
-            // Reset tab visibilities
             btnUpload.style.display = 'none';
             btnReview.style.display = 'none';
             btnAdmin.style.display = 'none';
@@ -956,7 +1069,7 @@ HTML_TEMPLATE = """
             } else if (role === 'Field Officer') {
                 btnUpload.style.display = 'flex';
             } else {
-                // Viewer (Read Only - Only Live & Results available)
+                // Viewer (Read Only - Live & Results)
             }
         }
 
@@ -976,11 +1089,10 @@ HTML_TEMPLATE = """
                 document.getElementById('statTurnout').innerText = data.metrics?.turnout || '0.0%';
                 document.getElementById('statValid').innerText = (data.metrics?.valid || 0).toLocaleString();
                 document.getElementById('statRejected').innerText = (data.metrics?.rejected || 0).toLocaleString();
-                document.getElementById('statPUs').innerText = data.metrics?.pus_verified || '0/39';
+                document.getElementById('statPUs').innerText = data.metrics?.pus_verified || '0/154';
                 document.getElementById('progressPctText').innerText = data.metrics?.progress_pct || '0.0%';
                 document.getElementById('progressFill').style.width = data.metrics?.progress_pct || '0%';
 
-                // Render ALL 19 PARTIES Real-Time Counter
                 let html = '';
                 (data.standings || []).forEach(item => {
                     html += `
