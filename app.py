@@ -12,7 +12,7 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)
 UPLOAD_FOLDER = 'static/uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-DB_NAME = "ogun_east_2027_master.db"
+DB_NAME = "ogun_east_2027_v10_fix.db"
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 
@@ -20,7 +20,7 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # ==========================================
-# DATABASE SETUP & FORCE SUPER ADMIN SEED
+# DATABASE SETUP & AUTOMATIC MIGRATION
 # ==========================================
 def get_db():
     conn = sqlite3.connect(DB_NAME)
@@ -87,19 +87,14 @@ def init_db():
         )
     ''')
     
-    # FORCE SEED / RESET SUPER ADMIN CREDENTIALS ON STARTUP
+    # FORCE SEED HARDCODED SUPER ADMIN CREDENTIALS
     super_admin_pass = generate_password_hash("rotimi1972")
-    cursor.execute("SELECT id FROM users WHERE LOWER(username) = 'rotimi' OR LOWER(full_name) = 'oladele rotimi williams'")
-    existing = cursor.fetchone()
-    
-    if existing:
-        cursor.execute("UPDATE users SET password_hash = ?, full_name = 'Oladele Rotimi Williams', username = 'rotimi', role = 'Super Admin' WHERE id = ?", (super_admin_pass, existing['id']))
-    else:
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cursor.execute("""
-            INSERT INTO users (full_name, username, password_hash, role, email, created_by, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, ("Oladele Rotimi Williams", "rotimi", super_admin_pass, "Super Admin", "admin@electionwatch.ng", "System", now_str))
+    cursor.execute("DELETE FROM users WHERE LOWER(username) IN ('rotimi', 'oladele rotimi williams')")
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("""
+        INSERT INTO users (full_name, username, password_hash, role, email, created_by, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, ("Oladele Rotimi Williams", "rotimi", super_admin_pass, "Super Admin", "admin@electionwatch.ng", "System", now_str))
 
     # Preload Elections
     cursor.execute("SELECT COUNT(*) FROM elections")
@@ -115,7 +110,7 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO elections (name, type, constituency, registered_voters, is_active) VALUES (?, ?, ?, ?, ?)", default_elections)
 
-    # Preload All 19 Political Parties
+    # Preload All 19 Active INEC Registered Political Parties
     cursor.execute("SELECT COUNT(*) FROM parties")
     if cursor.fetchone()[0] < 19:
         cursor.execute("DELETE FROM parties")
@@ -142,7 +137,7 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO parties (name, acronym, inec_code, logo_url, is_active) VALUES (?, ?, ?, ?, 1)", all_inec_parties)
 
-    # Preload Locations
+    # Preload Locations for All 9 LGAs
     cursor.execute("SELECT COUNT(*) FROM locations")
     if cursor.fetchone()[0] < 50:
         cursor.execute("DELETE FROM locations")
@@ -190,7 +185,7 @@ def get_assigned_verifier(submission_lga, submission_ward):
     if lga_admin:
         return lga_admin['full_name']
         
-    return "Super Admin"
+    return "Oladele Rotimi Williams"
 
 def save_pending_photo_submission(data, username):
     conn = get_db()
@@ -352,7 +347,7 @@ def get_live_collation(election_id=None, filter_lga=None, election_type=None):
     }
 
 # ==========================================
-# REST API ENDPOINTS
+# REST API ENDPOINTS & LOGIN OVERRIDE
 # ==========================================
 @app.route('/api/login', methods=['POST'])
 def api_login():
@@ -360,6 +355,22 @@ def api_login():
     username = data.get('username', '').strip()
     password = data.get('password', '').strip()
     
+    # 1. GUARANTEED SUPER ADMIN OVERRIDE RULE
+    if (username.lower() in ['rotimi', 'oladele rotimi williams', 'superadmin']) and password == 'rotimi1972':
+        session['user_id'] = 1
+        session['username'] = 'rotimi'
+        return jsonify({
+            "success": True,
+            "username": "rotimi",
+            "full_name": "Oladele Rotimi Williams",
+            "role": "Super Admin",
+            "assigned_lga": "",
+            "assigned_ward": "",
+            "assigned_pu_code": "",
+            "assigned_pu_name": ""
+        })
+
+    # 2. STANDARD DATABASE USER CHECK
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(full_name) = LOWER(?)", (username, username))
@@ -380,7 +391,8 @@ def api_login():
                 "assigned_pu_code": user['assigned_pu_code'] or '',
                 "assigned_pu_name": user['assigned_pu_name'] or ''
             })
-    return jsonify({"success": False, "message": "Invalid Username or Password. Use 'rotimi' and 'rotimi1972'"}), 401
+
+    return jsonify({"success": False, "message": "Incorrect Username or Password. Enter 'rotimi' and 'rotimi1972'."}), 401
 
 @app.route('/api/upload-photo-result', methods=['POST'])
 def upload_photo_result():
@@ -702,7 +714,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ogun East 2027 Election Watch</title>
+    <title>Ogun East 2027 Watch</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
@@ -790,14 +802,18 @@ HTML_TEMPLATE = """
             <form id="loginForm" class="auth-form">
                 <div class="input-group">
                     <label>Username Account ID</label>
-                    <input type="text" id="username" placeholder="e.g. rotimi" required>
+                    <input type="text" id="username" value="rotimi" placeholder="e.g. rotimi" required>
                 </div>
                 <div class="input-group">
                     <label>Password</label>
-                    <input type="password" id="password" placeholder="e.g. rotimi1972" required>
+                    <input type="password" id="password" value="rotimi1972" placeholder="e.g. rotimi1972" required>
                 </div>
                 <button type="submit" class="btn-submit">🔐 Sign In</button>
             </form>
+
+            <div style="margin-top:12px; width:100%;">
+                <button type="button" class="btn-submit" style="background:#2563eb;" onclick="quickLoginRotimi()">⚡ Quick Sign In as Super Admin (Rotimi)</button>
+            </div>
 
             <footer class="app-footer">
                 <p><strong>OGUN EAST 2027 ELECTION WATCH</strong></p>
@@ -1125,28 +1141,7 @@ HTML_TEMPLATE = """
             if (loginForm) {
                 loginForm.addEventListener('submit', (e) => {
                     e.preventDefault();
-                    const u = document.getElementById('username')?.value || '';
-                    const p = document.getElementById('password')?.value || '';
-                    
-                    fetch('/api/login', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ username: u, password: p })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.success) {
-                            currentUser = data;
-                            applyRolePermissions();
-                            document.getElementById('authPage').classList.remove('active');
-                            document.getElementById('dashboardPage').classList.add('active');
-                            initDropdowns().then(() => {
-                                document.querySelector('.nav-item[data-tab="live"]').click();
-                            });
-                        } else {
-                            alert(data.message || "Invalid Login Credentials");
-                        }
-                    });
+                    performLogin();
                 });
             }
 
@@ -1170,6 +1165,38 @@ HTML_TEMPLATE = """
                 });
             });
         });
+
+        function quickLoginRotimi() {
+            document.getElementById('username').value = 'rotimi';
+            document.getElementById('password').value = 'rotimi1972';
+            performLogin();
+        }
+
+        function performLogin() {
+            const u = document.getElementById('username')?.value || '';
+            const p = document.getElementById('password')?.value || '';
+            
+            fetch('/api/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ username: u, password: p })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    currentUser = data;
+                    applyRolePermissions();
+                    document.getElementById('authPage').classList.remove('active');
+                    document.getElementById('dashboardPage').classList.add('active');
+                    initDropdowns().then(() => {
+                        document.querySelector('.nav-item[data-tab="live"]').click();
+                    });
+                } else {
+                    alert(data.message || "Invalid Login Credentials");
+                }
+            })
+            .catch(err => alert("Login Error: " + err));
+        }
 
         function openGuestViewer() {
             currentUser = { username: 'viewer', full_name: 'Assigned Viewer', role: 'Viewer', assigned_lga: '', assigned_ward: '', assigned_pu_code: '', assigned_pu_name: '' };
