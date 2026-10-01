@@ -20,7 +20,7 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # ==========================================
-# DATABASE SETUP & COMPLETE GEOGRAPHIC SEED
+# DATABASE SETUP & FORCE SUPER ADMIN SEED
 # ==========================================
 def get_db():
     conn = sqlite3.connect(DB_NAME)
@@ -63,7 +63,7 @@ def init_db():
         )
     ''')
 
-    # 4. Parties Table (All 19 Active INEC Parties)
+    # 4. Parties Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS parties (
             id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, acronym TEXT UNIQUE,
@@ -79,7 +79,7 @@ def init_db():
         )
     ''')
 
-    # 6. Locations Table (Ogun East LGAs, Wards & Polling Units)
+    # 6. Locations Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS locations (
             id INTEGER PRIMARY KEY AUTOINCREMENT, state TEXT DEFAULT 'Ogun',
@@ -87,17 +87,21 @@ def init_db():
         )
     ''')
     
-    # Seed Hardcoded Super Admin Account
+    # FORCE SEED / RESET SUPER ADMIN CREDENTIALS ON STARTUP
+    super_admin_pass = generate_password_hash("rotimi1972")
     cursor.execute("SELECT id FROM users WHERE LOWER(username) = 'rotimi' OR LOWER(full_name) = 'oladele rotimi williams'")
-    if not cursor.fetchone():
+    existing = cursor.fetchone()
+    
+    if existing:
+        cursor.execute("UPDATE users SET password_hash = ?, full_name = 'Oladele Rotimi Williams', username = 'rotimi', role = 'Super Admin' WHERE id = ?", (super_admin_pass, existing['id']))
+    else:
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        super_admin_pass = generate_password_hash("rotimi1972")
         cursor.execute("""
             INSERT INTO users (full_name, username, password_hash, role, email, created_by, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, ("Oladele Rotimi Williams", "rotimi", super_admin_pass, "Super Admin", "admin@electionwatch.ng", "System", now_str))
 
-    # Preload Elections for Ogun East
+    # Preload Elections
     cursor.execute("SELECT COUNT(*) FROM elections")
     if cursor.fetchone()[0] == 0:
         default_elections = [
@@ -111,7 +115,7 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO elections (name, type, constituency, registered_voters, is_active) VALUES (?, ?, ?, ?, ?)", default_elections)
 
-    # Preload All 19 Active INEC Registered Political Parties
+    # Preload All 19 Political Parties
     cursor.execute("SELECT COUNT(*) FROM parties")
     if cursor.fetchone()[0] < 19:
         cursor.execute("DELETE FROM parties")
@@ -138,74 +142,28 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO parties (name, acronym, inec_code, logo_url, is_active) VALUES (?, ?, ?, ?, 1)", all_inec_parties)
 
-    # Preload Complete Locations for ALL 9 LGAS of Ogun East
+    # Preload Locations
     cursor.execute("SELECT COUNT(*) FROM locations")
-    if cursor.fetchone()[0] < 60:
+    if cursor.fetchone()[0] < 50:
         cursor.execute("DELETE FROM locations")
         ogun_east_locations = [
-            # 1. IJEBU EAST LGA (27/07)
             ("Ogun", "Ijebu East", "Ijebu Mushin I", "ODOSEGBUREN SQUARE", "27/07/01/001"),
             ("Ogun", "Ijebu East", "Ijebu Mushin I", "IDONA CENTRAL", "27/07/01/002"),
             ("Ogun", "Ijebu East", "Ijebu Mushin II", "MUSHIN MARKET SQUARE", "27/07/02/001"),
             ("Ogun", "Ijebu East", "Ijebu Ife I", "ITAKO OLUWERI SQUARE", "27/07/03/001"),
-            ("Ogun", "Ijebu East", "Ijebu Ife II", "TOWN HALL IJEBU IFE", "27/07/04/001"),
-            ("Ogun", "Ijebu East", "Owu", "ANGLICAN PRY SCH OWU", "27/07/05/001"),
-            ("Ogun", "Ijebu East", "Ikija", "ANGLICAN PRY SCH IKIJA", "27/07/06/001"),
-            ("Ogun", "Ijebu East", "Itele", "ST. JOHNS SCH ITELE", "27/07/07/001"),
             ("Ogun", "Ijebu East", "Ogbere", "PALACE FRONTAGE OGBERE", "27/07/08/001"),
-            ("Ogun", "Ijebu East", "Imobi I", "ST. MARYS SCH FOWOSEJE", "27/07/09/001"),
-            ("Ogun", "Ijebu East", "Imobi II", "CATHOLIC SCH ITASIN", "27/07/10/001"),
             ("Ogun", "Ijebu East", "Ajebandele", "ST. SAVIOURS SCH AJEBANDELE", "27/07/11/001"),
-
-            # 2. SAGAMU LGA (27/18)
             ("Ogun", "Sagamu", "Makun I", "ST. PAULS PRY SCH MAKUN I", "27/18/01/001"),
             ("Ogun", "Sagamu", "Makun I", "EWUSI PALACE SQUARE", "27/18/01/002"),
             ("Ogun", "Sagamu", "Makun II", "AJEDE COMMUNITY SCH", "27/18/02/001"),
-            ("Ogun", "Sagamu", "Offin I", "OFFIN COMMUNITY HALL", "27/18/03/001"),
-            ("Ogun", "Sagamu", "Offin II", "SOTUBO COMMUNITY SCH", "27/18/04/001"),
-            ("Ogun", "Sagamu", "Sabo", "SABO MARKET SQUARE", "27/18/05/001"),
-            ("Ogun", "Sagamu", "Ogijo/Ikosi", "OGIJO COMMUNITY HIGH SCH", "27/18/06/001"),
-
-            # 3. IJEBU ODE LGA (27/11)
             ("Ogun", "Ijebu Ode", "Porogun I", "POROGUN CHURCH PRY SCH", "27/11/01/001"),
-            ("Ogun", "Ijebu Ode", "Porogun I", "COURT HALL POROGUN", "27/11/01/002"),
             ("Ogun", "Ijebu Ode", "Porogun II", "ITA OLE MARKET SQUARE", "27/11/02/001"),
-            ("Ogun", "Ijebu Ode", "Ijasi", "IJASI TOWN HALL", "27/11/03/001"),
-            ("Ogun", "Ijebu Ode", "Molipa", "MOLIPA HIGH SCHOOL", "27/11/04/001"),
-            ("Ogun", "Ijebu Ode", "Isibo", "ISIBO SQUARE", "27/11/05/001"),
-
-            # 4. IJEBU NORTH LGA (27/09)
             ("Ogun", "Ijebu North", "Ago Iwoye I", "METHODIST PRY SCH AGO IWOYE", "27/09/01/001"),
-            ("Ogun", "Ijebu North", "Ago Iwoye II", "FOWOSEJE TOWN HALL", "27/09/02/001"),
-            ("Ogun", "Ijebu North", "Oru/Awa/Ilaporu", "ORU TOWN HALL", "27/09/03/001"),
-            ("Ogun", "Ijebu North", "Oke Sopin", "OKE SOPIN MARKET SQUARE", "27/09/04/001"),
-            ("Ogun", "Ijebu North", "Atikori", "ATIKORI COMMUNITY SCH", "27/09/05/001"),
-
-            # 5. IKENNE LGA (27/12)
             ("Ogun", "Ikenne", "Iperu I", "AKESAN MARKET SQUARE IPERU", "27/12/01/001"),
-            ("Ogun", "Ikenne", "Iperu II", "CHRIST CHURCH PRY SCH IPERU", "27/12/02/001"),
-            ("Ogun", "Ikenne", "Ikenne I", "OBAFEMI AWOLOWO TOWN HALL", "27/12/03/001"),
-            ("Ogun", "Ikenne", "Ilisan I", "ILISAN TOWN HALL", "27/12/04/001"),
-
-            # 6. REMO NORTH LGA (27/17)
             ("Ogun", "Remo North", "Isara I", "ISARA TOWN HALL", "27/17/01/001"),
-            ("Ogun", "Remo North", "Ipara", "IPARA MARKET SQUARE", "27/17/02/001"),
-            ("Ogun", "Remo North", "Ode I", "ODE REMO PRY SCH", "27/17/03/001"),
-
-            # 7. IJEBU NORTH EAST LGA (27/10)
             ("Ogun", "Ijebu North East", "Atan", "ATAN TOWN HALL", "27/10/01/001"),
-            ("Ogun", "Ijebu North East", "Ilese", "ILESE GRAMMAR SCH", "27/10/02/001"),
-            ("Ogun", "Ijebu North East", "Itamapako", "ITAMAPAKO PRY SCH", "27/10/03/001"),
-
-            # 8. OGUN WATERSIDE LGA (27/15)
             ("Ogun", "Ogun Waterside", "Abigi", "ABIGI TOWN HALL", "27/15/01/001"),
-            ("Ogun", "Ogun Waterside", "Iwopin", "IWOPIN JETTY SQUARE", "27/15/02/001"),
-            ("Ogun", "Ogun Waterside", "Ibiade", "IBIADE MARKET SQUARE", "27/15/03/001"),
-
-            # 9. ODOGBOLU LGA (27/14)
-            ("Ogun", "Odogbolu", "Odogbolu I", "ODOGBOLU TOWN HALL", "27/14/01/001"),
-            ("Ogun", "Odogbolu", "Aiyepe", "AIYEPE CENTRAL SCH", "27/14/02/001"),
-            ("Ogun", "Odogbolu", "Ososa", "OSOSA PRY SCHOOL", "27/14/03/001")
+            ("Ogun", "Odogbolu", "Odogbolu I", "ODOGBOLU TOWN HALL", "27/14/01/001")
         ]
         cursor.executemany("INSERT INTO locations (state, lga, ward, polling_unit, pu_code) VALUES (?, ?, ?, ?, ?)", ogun_east_locations)
         
@@ -218,7 +176,6 @@ init_db()
 # WORKFLOW ENGINE & ROUTING LOGIC
 # ==========================================
 def get_assigned_verifier(submission_lga, submission_ward):
-    """Finds the designated Ward Collation Admin or LGA Admin for this submission."""
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT full_name FROM users WHERE role = 'Collation Admin' AND LOWER(assigned_lga) = LOWER(?) AND LOWER(assigned_ward) = LOWER(?) LIMIT 1", (submission_lga, submission_ward))
@@ -423,7 +380,7 @@ def api_login():
                 "assigned_pu_code": user['assigned_pu_code'] or '',
                 "assigned_pu_name": user['assigned_pu_name'] or ''
             })
-    return jsonify({"success": False, "message": "Invalid Username or Password"}), 401
+    return jsonify({"success": False, "message": "Invalid Username or Password. Use 'rotimi' and 'rotimi1972'"}), 401
 
 @app.route('/api/upload-photo-result', methods=['POST'])
 def upload_photo_result():
@@ -583,7 +540,6 @@ def handle_users():
         pass_hash = generate_password_hash(d.get('password', 'Pass1234!'))
         role = d.get('role')
         
-        # Enforce Role Scoping Boundaries
         cursor.execute("SELECT role, assigned_lga FROM users WHERE username = ?", (creator,))
         creator_user = cursor.fetchone()
         
@@ -746,7 +702,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ogun East 2027 Watch</title>
+    <title>Ogun East 2027 Election Watch</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
@@ -834,11 +790,11 @@ HTML_TEMPLATE = """
             <form id="loginForm" class="auth-form">
                 <div class="input-group">
                     <label>Username Account ID</label>
-                    <input type="text" id="username" placeholder="Enter Account Username" required>
+                    <input type="text" id="username" placeholder="e.g. rotimi" required>
                 </div>
                 <div class="input-group">
                     <label>Password</label>
-                    <input type="password" id="password" placeholder="Enter Password" required>
+                    <input type="password" id="password" placeholder="e.g. rotimi1972" required>
                 </div>
                 <button type="submit" class="btn-submit">🔐 Sign In</button>
             </form>
@@ -976,34 +932,29 @@ HTML_TEMPLATE = """
                         <p style="font-size:12px; font-weight:700; color:#2563eb;" id="fieldLockPuCode"></p>
                     </div>
 
-                    <!-- STEP 1: SELECT LGA -->
                     <div id="uploadStep1" class="wizard-step active">
                         <h3 style="margin-bottom:12px; color:#0c235c;">1. Select Local Government Area (LGA)</h3>
                         <div class="btn-stack" id="lgasListStack"></div>
                     </div>
 
-                    <!-- STEP 2: SELECT ACTIVE ELECTION TYPE -->
                     <div id="uploadStep2" class="wizard-step">
                         <h3 style="margin-bottom:12px; color:#0c235c;">2. Select Election Category</h3>
                         <div class="btn-stack" id="electionsListStack"></div>
                         <button class="btn-secondary" style="margin-top:10px;" id="btnBackToStep1" onclick="goToUploadStep(1)">← Back</button>
                     </div>
 
-                    <!-- STEP 3: SELECT WARD -->
                     <div id="uploadStep3" class="wizard-step">
                         <h3 style="margin-bottom:12px; color:#0c235c;">3. Select Ward</h3>
                         <div class="btn-stack" id="wardsListStack"></div>
                         <button class="btn-secondary" style="margin-top:10px;" onclick="goToUploadStep(2)">← Back</button>
                     </div>
 
-                    <!-- STEP 4: SELECT POLLING UNIT -->
                     <div id="uploadStep4" class="wizard-step">
                         <h3 style="margin-bottom:12px; color:#0c235c;">4. Select Polling Unit</h3>
                         <div class="btn-stack" id="pusListStack"></div>
                         <button class="btn-secondary" style="margin-top:10px;" onclick="goToUploadStep(3)">← Back</button>
                     </div>
 
-                    <!-- STEP 5: ATTACH PHOTO -->
                     <div id="uploadStep5" class="wizard-step">
                         <h3 style="margin-bottom:12px; color:#0c235c;">5. Capture / Attach EC8A Photo</h3>
                         <div style="background:#1d3557; color:#fff; padding:14px; border-radius:10px; margin-bottom:15px;">
@@ -1376,9 +1327,6 @@ HTML_TEMPLATE = """
             window.location.href = `/api/export-csv?lga=${encodeURIComponent(lga)}`;
         }
 
-        // ==========================================
-        // DYNAMIC UPLOAD WIZARD
-        // ==========================================
         function loadUploadWizardData() {
             if (currentUser.role === 'Collation Admin') {
                 document.getElementById('uploadCollationAdminBlocked').style.display = 'block';
