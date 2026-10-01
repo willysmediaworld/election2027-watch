@@ -1,14 +1,18 @@
-from flask import Flask, render_template_string, request, jsonify
+from flask import Flask, render_template_string, request, jsonify, session, Response
 import sqlite3
 import json
 import os
+import csv
+import io
 from datetime import datetime
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+app.secret_key = os.urandom(24)
 UPLOAD_FOLDER = 'static/uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-DB_NAME = "ogun_east_2027_v2.db"
+DB_NAME = "ogun_east_2027_production.db"
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 
@@ -16,7 +20,7 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # ==========================================
-# DATABASE SETUP & MICRO-SCOPED SCHEMA
+# DATABASE SETUP & COMPLETE OGUN EAST DATA
 # ==========================================
 def get_db():
     conn = sqlite3.connect(DB_NAME)
@@ -36,15 +40,16 @@ def init_db():
             valid_votes INTEGER DEFAULT 0, rejected_votes INTEGER DEFAULT 0,
             total_votes_cast INTEGER DEFAULT 0, image_url TEXT, submitted_by TEXT,
             assigned_to TEXT DEFAULT '', timestamp DATETIME, status TEXT DEFAULT 'PENDING',
-            review_notes TEXT, verified_by TEXT, verified_at DATETIME
+            review_notes TEXT, is_flagged INTEGER DEFAULT 0, flag_reason TEXT DEFAULT '',
+            verified_by TEXT, verified_at DATETIME
         )
     ''')
 
-    # 2. Users Table (With LGA, Ward, PU Scoping Columns)
+    # 2. Users Table (With Password Hash & Micro-Scoping)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT, username TEXT UNIQUE,
-            role TEXT, assigned_lga TEXT DEFAULT '', assigned_ward TEXT DEFAULT '',
+            password_hash TEXT, role TEXT, assigned_lga TEXT DEFAULT '', assigned_ward TEXT DEFAULT '',
             assigned_pu_code TEXT DEFAULT '', assigned_pu_name TEXT DEFAULT '',
             email TEXT, created_by TEXT DEFAULT 'Super Admin', created_at DATETIME
         )
@@ -74,7 +79,7 @@ def init_db():
         )
     ''')
 
-    # 6. Locations Table (Ogun East LGAs, Wards & PUs)
+    # 6. Locations Table (All 9 LGAs, Wards, and Polling Units)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS locations (
             id INTEGER PRIMARY KEY AUTOINCREMENT, state TEXT DEFAULT 'Ogun',
@@ -82,84 +87,34 @@ def init_db():
         )
     ''')
     
-    # Preload ALL 9 LGAS of Ogun East Senatorial District with sample Wards & Polling Units
-    cursor.execute("SELECT COUNT(*) FROM locations")
-    if cursor.fetchone()[0] < 20:
-        cursor.execute("DELETE FROM locations")
-        ogun_east_locations = [
-            # SAGAMU LGA
-            ("Ogun", "Sagamu", "Makun I", "ST. PAULS PRY SCH MAKUN", "27/18/01/001"),
-            ("Ogun", "Sagamu", "Makun I", "EWUSI PALACE SQUARE", "27/18/01/002"),
-            ("Ogun", "Sagamu", "Makun II", "AJEDE COMM SCH", "27/18/02/001"),
-            ("Ogun", "Sagamu", "Offin/Sotubo", "OFFIN COMMUNITY HALL", "27/18/03/001"),
-
-            # IJEBU ODE LGA
-            ("Ogun", "Ijebu Ode", "Porogun I", "POROGUN CHURCH PRY SCH", "27/11/01/001"),
-            ("Ogun", "Ijebu Ode", "Porogun I", "COURT HALL POROGUN", "27/11/01/002"),
-            ("Ogun", "Ijebu Ode", "Porogun II", "ITA OLE MARKET SQUARE", "27/11/02/001"),
-
-            # IJEBU NORTH LGA
-            ("Ogun", "Ijebu North", "Ago Iwoye I", "METHODIST PRY SCH AGO IWOYE", "27/09/01/001"),
-            ("Ogun", "Ijebu North", "Ago Iwoye II", "FOWOSEJE TOWN HALL", "27/09/02/001"),
-
-            # IJEBU EAST LGA
-            ("Ogun", "Ijebu East", "Ijebu Mushin I", "ODOSEGBUREN", "27/07/01/001"),
-            ("Ogun", "Ijebu East", "Ijebu Ife I", "ITAKO SQUARE", "27/07/03/001"),
-
-            # IKENNE LGA
-            ("Ogun", "Ikenne", "Iperu I", "AKESAN MARKET SQUARE IPERU", "27/12/01/001"),
-            ("Ogun", "Ikenne", "Iperu II", "CHRIST CHURCH PRY SCH IPERU", "27/12/02/001"),
-
-            # REMO NORTH LGA
-            ("Ogun", "Remo North", "Isara I", "ISARA TOWN HALL", "27/17/01/001"),
-
-            # IJEBU NORTH EAST LGA
-            ("Ogun", "Ijebu North East", "Atan", "ATAN TOWN HALL", "27/10/01/001"),
-
-            # OGUN WATERSIDE LGA
-            ("Ogun", "Ogun Waterside", "Abigi", "ABIGI TOWN HALL", "27/15/01/001"),
-
-            # ODOGBOLU LGA
-            ("Ogun", "Odogbolu", "Odogbolu I", "ODOGBOLU TOWN HALL", "27/14/01/001")
-        ]
-        cursor.executemany("INSERT INTO locations (state, lga, ward, polling_unit, pu_code) VALUES (?, ?, ?, ?, ?)", ogun_east_locations)
-
-    # Seed User Accounts Demonstrating Full Multi-Tier Hierarchy
+    # Seed Super Admin Account if database is empty
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        default_users = [
-            # 1. Super Admin (Global Root)
-            ("Oladele Rotimi Williams", "superadmin", "Super Admin", "", "", "", "", "admin@electionwatch.ng", "System", now_str),
-            
-            # 2. LGA Admin (Sagamu LGA Officer)
-            ("Sagamu LGA Officer", "sagamu_admin", "LGA Admin", "Sagamu", "", "", "", "sagamu_admin@electionwatch.ng", "superadmin", now_str),
-            
-            # 3. Ward Collation Admin (Assigned to Makun I Ward in Sagamu)
-            ("Makun 1 Ward Admin", "makun1_admin", "Collation Admin", "Sagamu", "Makun I", "", "", "makun1@electionwatch.ng", "sagamu_admin", now_str),
-            
-            # 4. Field Officer (Assigned STRICTLY to ST. PAULS PRY SCH MAKUN PU)
-            ("Field Officer PU001", "field_pu1", "Field Officer", "Sagamu", "Makun I", "27/18/01/001", "ST. PAULS PRY SCH MAKUN", "field1@electionwatch.ng", "sagamu_admin", now_str),
-            
-            # 5. Public Viewer
-            ("Public Observer", "viewer", "Viewer", "", "", "", "", "observer@electionwatch.ng", "System", now_str)
-        ]
-        cursor.executemany("""
-            INSERT INTO users (full_name, username, role, assigned_lga, assigned_ward, assigned_pu_code, assigned_pu_name, email, created_by, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, default_users)
+        super_admin_pass = generate_password_hash("SuperAdmin2027!")
+        cursor.execute("""
+            INSERT INTO users (full_name, username, password_hash, role, email, created_by, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, ("Oladele Rotimi Williams", "superadmin", super_admin_pass, "Super Admin", "admin@electionwatch.ng", "System", now_str))
 
-    # Preload Elections
+    # Preload Complete Ogun East Elections List
     cursor.execute("SELECT COUNT(*) FROM elections")
     if cursor.fetchone()[0] == 0:
         default_elections = [
-            ("Ogun East Senatorial District Election 2027", "Senatorial", "Ogun East", 1150000),
+            ("Ogun East Senatorial District Election 2027", "Senatorial", "Ogun East Senatorial District", 1150000),
+            ("Ogun State Governorship Election 2027", "Governorship", "Ogun State", 2400000),
+            ("Nigeria Presidential Election 2027", "Presidential", "National", 93000000),
             ("Sagamu / Ikenne / Remo North Reps Election 2027", "House of Representatives", "Remo Federal Constituency", 380000),
-            ("Ogun State Governorship Election 2027", "Governorship", "Ogun State", 2400000)
+            ("Ijebu Ode / Odogbolu / Ijebu North East Reps Election 2027", "House of Representatives", "Ijebu Central Federal Constituency", 320000),
+            ("Ijebu North / Ijebu East / Ogun Waterside Reps Election 2027", "House of Representatives", "Ijebu Federal Constituency", 350000),
+            ("Sagamu State Constituency I Assembly Election 2027", "State House of Assembly", "Sagamu I Constituency", 95000),
+            ("Sagamu State Constituency II Assembly Election 2027", "State House of Assembly", "Sagamu II Constituency", 85000),
+            ("Ijebu Ode State Constituency Assembly Election 2027", "State House of Assembly", "Ijebu Ode Constituency", 110000),
+            ("Local Government Chairmanship Election 2027", "Local Government", "Ogun East LGAs", 1150000)
         ]
         cursor.executemany("INSERT INTO elections (name, type, constituency, registered_voters) VALUES (?, ?, ?, ?)", default_elections)
 
-    # Preload Political Parties
+    # Preload All 19 Active INEC Registered Political Parties
     cursor.execute("SELECT COUNT(*) FROM parties")
     if cursor.fetchone()[0] < 19:
         cursor.execute("DELETE FROM parties")
@@ -186,27 +141,84 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO parties (name, acronym, inec_code, logo_url, is_active) VALUES (?, ?, ?, ?, 1)", all_inec_parties)
 
+    # Preload ALL 9 LGAS of Ogun East Senatorial District with official Wards & Polling Units
+    cursor.execute("SELECT COUNT(*) FROM locations")
+    if cursor.fetchone()[0] < 50:
+        cursor.execute("DELETE FROM locations")
+        ogun_east_locations = [
+            # 1. SAGAMU LGA (27/18)
+            ("Ogun", "Sagamu", "Makun I", "ST. PAULS PRY SCH MAKUN I", "27/18/01/001"),
+            ("Ogun", "Sagamu", "Makun I", "EWUSI PALACE SQUARE", "27/18/01/002"),
+            ("Ogun", "Sagamu", "Makun II", "AJEDE COMMUNITY SCH", "27/18/02/001"),
+            ("Ogun", "Sagamu", "Offin/Sotubo", "OFFIN COMMUNITY HALL", "27/18/03/001"),
+            ("Ogun", "Sagamu", "Sabo I", "SABO MARKET SQUARE", "27/18/04/001"),
+            ("Ogun", "Sagamu", "Ogijo/Ikosi", "OGIJO COMMUNITY HIGH SCH", "27/18/05/001"),
+
+            # 2. IJEBU ODE LGA (27/11)
+            ("Ogun", "Ijebu Ode", "Porogun I", "POROGUN CHURCH PRY SCH", "27/11/01/001"),
+            ("Ogun", "Ijebu Ode", "Porogun I", "COURT HALL POROGUN", "27/11/01/002"),
+            ("Ogun", "Ijebu Ode", "Porogun II", "ITA OLE MARKET SQUARE", "27/11/02/001"),
+            ("Ogun", "Ijebu Ode", "Ijasi", "IJASI TOWN HALL", "27/11/03/001"),
+            ("Ogun", "Ijebu Ode", "Molipa", "MOLIPA HIGH SCHOOL", "27/11/04/001"),
+
+            # 3. IJEBU NORTH LGA (27/09)
+            ("Ogun", "Ijebu North", "Ago Iwoye I", "METHODIST PRY SCH AGO IWOYE", "27/09/01/001"),
+            ("Ogun", "Ijebu North", "Ago Iwoye II", "FOWOSEJE TOWN HALL", "27/09/02/001"),
+            ("Ogun", "Ijebu North", "Oru/Awa/Ilaporu", "ORU TOWN HALL", "27/09/03/001"),
+            ("Ogun", "Ijebu North", "Oke Sopin", "OKE SOPIN MARKET SQUARE", "27/09/04/001"),
+
+            # 4. IJEBU EAST LGA (27/07)
+            ("Ogun", "Ijebu East", "Ijebu Mushin I", "ODOSEGBUREN SQUARE", "27/07/01/001"),
+            ("Ogun", "Ijebu East", "Ijebu Ife I", "ITAKO OLUWERI SQUARE", "27/07/03/001"),
+            ("Ogun", "Ijebu East", "Ogbere", "PALACE FRONTAGE OGBERE", "27/07/08/001"),
+            ("Ogun", "Ijebu East", "Ajebandele", "ST. SAVIOUR’S SCH AJEBANDELE", "27/07/11/001"),
+
+            # 5. IKENNE LGA (27/12)
+            ("Ogun", "Ikenne", "Iperu I", "AKESAN MARKET SQUARE IPERU", "27/12/01/001"),
+            ("Ogun", "Ikenne", "Iperu II", "CHRIST CHURCH PRY SCH IPERU", "27/12/02/001"),
+            ("Ogun", "Ikenne", "Ikenne I", "OBAFEMI AWOLOWO TOWN HALL", "27/12/03/001"),
+            ("Ogun", "Ikenne", "Ilisan I", "ILISAN TOWN HALL", "27/12/04/001"),
+
+            # 6. REMO NORTH LGA (27/17)
+            ("Ogun", "Remo North", "Isara I", "ISARA TOWN HALL", "27/17/01/001"),
+            ("Ogun", "Remo North", "Ipara", "IPARA MARKET SQUARE", "27/17/02/001"),
+            ("Ogun", "Remo North", "Ode I", "ODE REMO PRY SCH", "27/17/03/001"),
+
+            # 7. IJEBU NORTH EAST LGA (27/10)
+            ("Ogun", "Ijebu North East", "Atan", "ATAN TOWN HALL", "27/10/01/001"),
+            ("Ogun", "Ijebu North East", "Ilese", "ILESE GRAMMAR SCH", "27/10/02/001"),
+            ("Ogun", "Ijebu North East", "Itamapako", "ITAMAPAKO PRY SCH", "27/10/03/001"),
+
+            # 8. OGUN WATERSIDE LGA (27/15)
+            ("Ogun", "Ogun Waterside", "Abigi", "ABIGI TOWN HALL", "27/15/01/001"),
+            ("Ogun", "Ogun Waterside", "Iwopin", "IWOPIN JETTY SQUARE", "27/15/02/001"),
+            ("Ogun", "Ogun Waterside", "Ibiade", "IBIADE MARKET SQUARE", "27/15/03/001"),
+
+            # 9. ODOGBOLU LGA (27/14)
+            ("Ogun", "Odogbolu", "Odogbolu I", "ODOGBOLU TOWN HALL", "27/14/01/001"),
+            ("Ogun", "Odogbolu", "Aiyepe", "AIYEPE CENTRAL SCH", "27/14/02/001"),
+            ("Ogun", "Odogbolu", "Ososa", "OSOSA PRY SCHOOL", "27/14/03/001")
+        ]
+        cursor.executemany("INSERT INTO locations (state, lga, ward, polling_unit, pu_code) VALUES (?, ?, ?, ?, ?)", ogun_east_locations)
+        
     conn.commit()
     conn.close()
 
 init_db()
 
 # ==========================================
-# WORKFLOW & SECURITY ENFORCEMENT ENGINE
+# WORKFLOW ENGINE & ROUTING LOGIC
 # ==========================================
 def get_assigned_verifier(submission_lga, submission_ward):
-    """Finds the specific Ward Collation Admin or LGA Admin responsible for this submission."""
+    """Finds the designated Ward Collation Admin or LGA Admin for this submission."""
     conn = get_db()
     cursor = conn.cursor()
-    
-    # 1. Search for Ward Collation Admin assigned strictly to this LGA & Ward
     cursor.execute("SELECT full_name FROM users WHERE role = 'Collation Admin' AND LOWER(assigned_lga) = LOWER(?) AND LOWER(assigned_ward) = LOWER(?) LIMIT 1", (submission_lga, submission_ward))
     ward_admin = cursor.fetchone()
     if ward_admin:
         conn.close()
         return ward_admin['full_name']
         
-    # 2. Fallback to LGA Admin
     cursor.execute("SELECT full_name FROM users WHERE role = 'LGA Admin' AND LOWER(assigned_lga) = LOWER(?) LIMIT 1", (submission_lga,))
     lga_admin = cursor.fetchone()
     conn.close()
@@ -219,12 +231,10 @@ def save_pending_photo_submission(data, username):
     conn = get_db()
     cursor = conn.cursor()
     
-    # Security Enforcement for Field Officers
     cursor.execute("SELECT role, assigned_lga, assigned_ward, assigned_pu_code, assigned_pu_name FROM users WHERE username = ?", (username,))
     user = cursor.fetchone()
     
     if user and user['role'] == 'Field Officer':
-        # Enforce server-side security lock: Field Officers can ONLY submit for their assigned PU
         lga = user['assigned_lga']
         ward = user['assigned_ward']
         pu_code = user['assigned_pu_code']
@@ -369,23 +379,29 @@ def get_live_collation(election_id=None, filter_lga=None):
 def api_login():
     data = request.json or {}
     username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE LOWER(username) = LOWER(?)", (username,))
     user = cursor.fetchone()
     conn.close()
-    if user:
-        return jsonify({
-            "success": True,
-            "username": user['username'],
-            "full_name": user['full_name'],
-            "role": user['role'],
-            "assigned_lga": user['assigned_lga'] or '',
-            "assigned_ward": user['assigned_ward'] or '',
-            "assigned_pu_code": user['assigned_pu_code'] or '',
-            "assigned_pu_name": user['assigned_pu_name'] or ''
-        })
-    return jsonify({"success": False, "message": "Invalid Account Credentials"}), 401
+
+    if user and user['password_hash']:
+        if check_password_hash(user['password_hash'], password):
+            session['user_id'] = user['id']
+            session['username'] = user['username']
+            return jsonify({
+                "success": True,
+                "username": user['username'],
+                "full_name": user['full_name'],
+                "role": user['role'],
+                "assigned_lga": user['assigned_lga'] or '',
+                "assigned_ward": user['assigned_ward'] or '',
+                "assigned_pu_code": user['assigned_pu_code'] or '',
+                "assigned_pu_name": user['assigned_pu_name'] or ''
+            })
+    return jsonify({"success": False, "message": "Invalid Username or Password"}), 401
 
 @app.route('/api/upload-photo-result', methods=['POST'])
 def upload_photo_result():
@@ -426,13 +442,11 @@ def review_queue():
     lga = user['assigned_lga']
     ward = user['assigned_ward']
 
-    # Micro-Scoped Queue Logic
     if role == 'Super Admin':
         cursor.execute("SELECT * FROM submissions WHERE status = 'PENDING' ORDER BY id DESC")
     elif role == 'LGA Admin':
         cursor.execute("SELECT * FROM submissions WHERE status = 'PENDING' AND LOWER(lga) = LOWER(?) ORDER BY id DESC", (lga,))
     elif role == 'Collation Admin':
-        # STRICT ISOLATION: Collation Admin sees ONLY their assigned Ward!
         cursor.execute("SELECT * FROM submissions WHERE status = 'PENDING' AND LOWER(lga) = LOWER(?) AND LOWER(ward) = LOWER(?) ORDER BY id DESC", (lga, ward))
     else:
         cursor.execute("SELECT * FROM submissions WHERE 1=0")
@@ -449,6 +463,8 @@ def admin_verify_collate_route():
     rejected_votes = int(d.get('rejected_votes', 0))
     status = d.get('status', 'ACCEPTED')
     notes = d.get('notes', '')
+    is_flagged = 1 if d.get('is_flagged') else 0
+    flag_reason = d.get('flag_reason', '')
     verified_by = d.get('verified_by', 'Admin')
 
     conn = get_db()
@@ -458,13 +474,13 @@ def admin_verify_collate_route():
 
     cursor.execute('''
         UPDATE submissions 
-        SET party_votes = ?, valid_votes = ?, rejected_votes = ?, total_votes_cast = ?, status = ?, review_notes = ?, verified_by = ?, verified_at = ?
+        SET party_votes = ?, valid_votes = ?, rejected_votes = ?, total_votes_cast = ?, status = ?, review_notes = ?, is_flagged = ?, flag_reason = ?, verified_by = ?, verified_at = ?
         WHERE id = ?
-    ''', (json.dumps(party_votes), valid_votes, rejected_votes, total_cast, status, notes, verified_by, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), sub_id))
+    ''', (json.dumps(party_votes), valid_votes, rejected_votes, total_cast, status, notes, is_flagged, flag_reason, verified_by, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), sub_id))
     
     conn.commit()
     conn.close()
-    return jsonify({"status": "success", "message": f"Submission #{sub_id} updated!"})
+    return jsonify({"status": "success", "message": f"Submission #{sub_id} processed!"})
 
 @app.route('/api/live-results', methods=['GET'])
 def live_results():
@@ -487,6 +503,32 @@ def ward_results():
         r['party_votes'] = json.loads(r['party_votes']) if r['party_votes'] else {}
     return jsonify(rows)
 
+@app.route('/api/export-csv', methods=['GET'])
+def export_csv():
+    filter_lga = request.args.get('lga', '')
+    conn = get_db()
+    cursor = conn.cursor()
+    if filter_lga and filter_lga != 'all':
+        cursor.execute("SELECT * FROM submissions WHERE status = 'ACCEPTED' AND LOWER(lga) = LOWER(?)", (filter_lga,))
+    else:
+        cursor.execute("SELECT * FROM submissions WHERE status = 'ACCEPTED'")
+    rows = cursor.fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Submission ID', 'Election Name', 'LGA', 'Ward', 'Polling Unit', 'PU Code', 'Valid Votes', 'Rejected Votes', 'Total Cast', 'Verified By', 'Timestamp'])
+
+    for r in rows:
+        writer.writerow([r['id'], r['election_name'], r['lga'], r['ward'], r['polling_unit'], r['pu_code'], r['valid_votes'], r['rejected_votes'], r['total_votes_cast'], r['verified_by'], r['verified_at']])
+
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-disposition": "attachment; filename=Ogun_East_2027_Results.csv"}
+    )
+
 @app.route('/api/admin/users', methods=['GET', 'POST'])
 def handle_users():
     conn = get_db()
@@ -494,29 +536,29 @@ def handle_users():
     if request.method == 'POST':
         d = request.json
         creator = d.get('created_by_user', 'Super Admin')
+        pass_hash = generate_password_hash(d.get('password', 'Pass1234!'))
         
         cursor.execute("""
-            INSERT INTO users (full_name, username, role, assigned_lga, assigned_ward, assigned_pu_code, assigned_pu_name, email, created_by, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (full_name, username, password_hash, role, assigned_lga, assigned_ward, assigned_pu_code, assigned_pu_name, email, created_by, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            d.get('full_name'), d.get('username'), d.get('role'),
+            d.get('full_name'), d.get('username'), pass_hash, d.get('role'),
             d.get('assigned_lga', ''), d.get('assigned_ward', ''),
             d.get('assigned_pu_code', ''), d.get('assigned_pu_name', ''),
             d.get('email'), creator, datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ))
         conn.commit()
         conn.close()
-        return jsonify({"success": True, "message": f"User '{d.get('username')}' successfully created and scoped!"})
+        return jsonify({"success": True, "message": f"User '{d.get('username')}' created!"})
     
     requester = request.args.get('username', '')
     cursor.execute("SELECT role, assigned_lga FROM users WHERE username = ?", (requester,))
     user = cursor.fetchone()
     
     if user and user['role'] == 'LGA Admin':
-        # LGA Admins can view users created within their LGA scope
-        cursor.execute("SELECT * FROM users WHERE LOWER(assigned_lga) = LOWER(?) ORDER BY id DESC", (user['assigned_lga'],))
+        cursor.execute("SELECT id, full_name, username, role, assigned_lga, assigned_ward, assigned_pu_code, email FROM users WHERE LOWER(assigned_lga) = LOWER(?) ORDER BY id DESC", (user['assigned_lga'],))
     else:
-        cursor.execute("SELECT * FROM users ORDER BY id DESC")
+        cursor.execute("SELECT id, full_name, username, role, assigned_lga, assigned_ward, assigned_pu_code, email FROM users ORDER BY id DESC")
         
     rows = [dict(r) for r in cursor.fetchall()]
     conn.close()
@@ -598,7 +640,6 @@ def reset_system():
     conn.close()
     return jsonify({"success": True, "message": "⚡ System Reset Complete!"})
 
-# Dynamic Geographic Cascading Endpoints
 @app.route('/api/locations/lgas', methods=['GET'])
 def get_lgas():
     conn = get_db()
@@ -632,7 +673,7 @@ def get_pus():
     return jsonify(pus)
 
 # ==========================================
-# FRONTEND UI (MICRO-SCOPED INTERFACE)
+# FRONTEND UI (PRODUCTION INTERFACE)
 # ==========================================
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -640,7 +681,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ogun East 2027 Watch</title>
+    <title>Ogun East 2027 Election Watch</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
@@ -649,7 +690,7 @@ HTML_TEMPLATE = """
         .page.active { display: flex; flex-direction: column; }
         
         #authPage { background-color: #ffffff; justify-content: center; align-items: center; padding: 24px 20px; }
-        .auth-container { width: 100%; max-width: 440px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .auth-container { width: 100%; max-width: 420px; display: flex; flex-direction: column; align-items: center; text-align: center; }
         .auth-title { color: #0c235c; font-size: 24px; font-weight: 800; margin-top: 10px; margin-bottom: 4px; }
         .auth-subtitle { color: #2563eb; font-size: 13px; font-weight:700; margin-bottom: 25px; }
         .auth-form { width: 100%; text-align: left; }
@@ -670,7 +711,7 @@ HTML_TEMPLATE = """
         .dashboard-content { padding: 20px 16px; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        .section-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; color: #0c235c; }
+        .section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; color: #0c235c; }
         .info-box { background-color: #e0f2fe; border: 1px solid #bae6fd; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; font-size: 12.5px; color: #0369a1; }
 
         .leader-card { background-color: #0c235c; color: #ffffff; padding: 20px 16px; border-radius: 16px; text-align: center; display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; }
@@ -723,16 +764,16 @@ HTML_TEMPLATE = """
     <div id="authPage" class="page active">
         <div class="auth-container">
             <h1 class="auth-title">OGUN EAST 2027</h1>
-            <p class="auth-subtitle">Senatorial District Micro-Scoped Portal</p>
+            <p class="auth-subtitle">Official Election Collation Portal</p>
 
             <form id="loginForm" class="auth-form">
                 <div class="input-group">
-                    <label>Username / Account ID</label>
-                    <input type="text" id="username" placeholder="Enter username" required>
+                    <label>Username Account ID</label>
+                    <input type="text" id="username" placeholder="Enter Account Username" required>
                 </div>
                 <div class="input-group">
                     <label>Password</label>
-                    <input type="password" id="password" value="••••••••" required>
+                    <input type="password" id="password" placeholder="Enter Password" required>
                 </div>
                 <button type="submit" class="btn-submit">🔐 Sign In</button>
             </form>
@@ -741,17 +782,9 @@ HTML_TEMPLATE = """
                 <button type="button" class="btn-submit" style="background:#2563eb;" onclick="openGuestViewer()">🌐 Public Guest Access (Read Only)</button>
             </div>
 
-            <div style="margin-top:20px; font-size:12px; background:#f8fafc; padding:10px; border-radius:8px; width:100%; text-align:left;">
-                <strong>Demo Logins:</strong><br>
-                • Super Admin: <code>superadmin</code><br>
-                • LGA Admin (Sagamu): <code>sagamu_admin</code><br>
-                • Collation Admin (Makun I Ward): <code>makun1_admin</code><br>
-                • Field Officer (PU001 Only): <code>field_pu1</code>
-            </div>
-
             <footer class="app-footer">
                 <p><strong>OGUN EAST 2027 ELECTION WATCH</strong></p>
-                <p style="color:#2563eb; font-weight:700;">Multi-Tier Scoped Governance</p>
+                <p style="color:#2563eb; font-weight:700;">Multi-Tier Governance Architecture</p>
                 <p>Designed by Willys Media World · 09018363715</p>
             </footer>
         </div>
@@ -760,7 +793,7 @@ HTML_TEMPLATE = """
     <div id="dashboardPage" class="page">
         <header class="app-header">
             <h1>OGUN EAST 2027 WATCH</h1>
-            <p>Real-Time Micro-Scoped Result Verification</p>
+            <p>Real-Time Micro-Scoped Collation System</p>
         </header>
 
         <div class="user-bar">
@@ -821,7 +854,11 @@ HTML_TEMPLATE = """
 
             <!-- TAB 2: WARD / PU RESULTS TABLE -->
             <section id="tab-results" class="tab-content">
-                <div class="section-heading"><h2>📋 LGA & Ward Breakdown</h2></div>
+                <div class="section-heading">
+                    <h2>📋 LGA & Ward Breakdown</h2>
+                    <button class="btn-submit" style="width:auto; padding:6px 12px; font-size:12px; background:#16a34a;" onclick="exportResultsCSV()">📄 Export CSV</button>
+                </div>
+                
                 <div class="input-group" style="margin-bottom:12px;">
                     <label>Filter by Local Government (LGA)</label>
                     <select id="resultsLgaSelect" onchange="loadWardTable()"></select>
@@ -843,9 +880,8 @@ HTML_TEMPLATE = """
             <section id="tab-upload" class="tab-content">
                 <div class="section-heading"><h2>📥 Submit Result Sheet (EC8A)</h2></div>
 
-                <!-- FIELD OFFICER LOCKED VIEW (Skipped automatically if role == Field Officer) -->
                 <div id="fieldOfficerLockedBox" style="display:none; background:#eff6ff; border:2px solid #2563eb; padding:16px; border-radius:12px; margin-bottom:15px;">
-                    <h3 style="color:#1e40af; font-size:16px; margin-bottom:6px;">🔒 Your Pre-Assigned Polling Unit</h3>
+                    <h3 style="color:#1e40af; font-size:15px; margin-bottom:6px;">🔒 Your Pre-Assigned Polling Unit</h3>
                     <p style="font-size:13px; color:#1e3a8a;" id="fieldLockLgaWard"></p>
                     <p style="font-size:15px; font-weight:900; color:#0c235c; margin-top:4px;" id="fieldLockPuName"></p>
                     <p style="font-size:12px; font-weight:700; color:#2563eb;" id="fieldLockPuCode"></p>
@@ -924,7 +960,7 @@ HTML_TEMPLATE = """
 
             <footer class="app-footer">
                 <p><strong>OGUN EAST 2027 ELECTION WATCH</strong></p>
-                <p style="color:#2563eb; font-weight:700;">Multi-Tier Scoped Governance</p>
+                <p style="color:#2563eb; font-weight:700;">Multi-Tier Governance Architecture</p>
                 <p>Designed by Willys Media World · 09018363715</p>
             </footer>
         </main>
@@ -944,6 +980,7 @@ HTML_TEMPLATE = """
             <h3>👤 Create & Scope User Account</h3>
             <div class="input-group"><label>Full Name</label><input type="text" id="adminUserFullName" placeholder="e.g. Chief Adebayo"></div>
             <div class="input-group"><label>Username</label><input type="text" id="adminUsername" placeholder="e.g. adebayo_makun"></div>
+            <div class="input-group"><label>Account Password</label><input type="password" id="adminUserPassword" placeholder="Set Account Password"></div>
             <div class="input-group">
                 <label>User Role Hierarchy Level</label>
                 <select id="adminUserRole" onchange="onRoleSelectionChanged()">
@@ -955,7 +992,6 @@ HTML_TEMPLATE = """
                 </select>
             </div>
 
-            <!-- DYNAMIC SCOPING SELECTION FIELDS -->
             <div class="input-group" id="groupAssignLga">
                 <label>Assign LGA</label>
                 <select id="adminUserLga" onchange="onAdminLgaChanged()"></select>
@@ -980,7 +1016,7 @@ HTML_TEMPLATE = """
         <div class="modal-card">
             <h3>📦 Create Election</h3>
             <div class="input-group"><label>Election Name</label><input type="text" id="adminElectName"></div>
-            <div class="input-group"><label>Election Type</label><select id="adminElectType"><option>Senatorial</option><option>House of Representatives</option><option>State House of Assembly</option><option>Governorship</option><option>Presidential</option></select></div>
+            <div class="input-group"><label>Election Type</label><select id="adminElectType"><option>Senatorial</option><option>House of Representatives</option><option>State House of Assembly</option><option>Governorship</option><option>Presidential</option><option>Local Government</option></select></div>
             <div class="input-group"><label>Constituency</label><input type="text" id="adminElectConstituency" value="Ogun East"></div>
             <div class="input-group"><label>Registered Voters</label><input type="number" id="adminElectVoters" value="1150000"></div>
             <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateElection()">Save Election</button>
@@ -1008,6 +1044,14 @@ HTML_TEMPLATE = """
             <img id="modalImage" src="" style="width:100%; height:180px; object-fit:contain; background:#1e293b; border-radius:8px; margin:8px 0;">
             <div id="modalDetails" style="font-size:12px; background:#f1f5f9; padding:8px; border-radius:6px; margin-bottom:10px;"></div>
             <div id="reviewPartyInputs"></div>
+            
+            <div style="margin-top:10px; background:#fff1f2; padding:10px; border-radius:8px; border:1px solid #fecdd3;">
+                <label style="font-size:12px; font-weight:800; color:#9f1239; display:flex; align-items:center; gap:6px;">
+                    <input type="checkbox" id="reviewFlagged"> ⚠️ Flag Submission Discrepancy / Incident
+                </label>
+                <input type="text" id="reviewFlagReason" placeholder="Reason for flag (e.g. over-voting, torn sheet)..." style="width:100%; padding:6px; margin-top:6px; border:1px solid #fda4af; border-radius:4px; font-size:12px;">
+            </div>
+
             <textarea id="reviewNotes" placeholder="Collation Notes..." style="width:100%; height:40px; padding:6px; margin-top:8px;"></textarea>
             <div style="display:flex; gap:8px; margin-top:10px;">
                 <button class="btn-submit" style="background:#16a34a; flex:1;" onclick="submitManualCollation('ACCEPTED')">✓ Accept & Collate</button>
@@ -1032,12 +1076,13 @@ HTML_TEMPLATE = """
             if (loginForm) {
                 loginForm.addEventListener('submit', (e) => {
                     e.preventDefault();
-                    const u = document.getElementById('username')?.value || 'viewer';
+                    const u = document.getElementById('username')?.value || '';
+                    const p = document.getElementById('password')?.value || '';
                     
                     fetch('/api/login', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ username: u })
+                        body: JSON.stringify({ username: u, password: p })
                     })
                     .then(res => res.json())
                     .then(data => {
@@ -1050,7 +1095,7 @@ HTML_TEMPLATE = """
                                 document.querySelector('.nav-item[data-tab="live"]').click();
                             });
                         } else {
-                            alert(data.message);
+                            alert(data.message || "Invalid Login Credentials");
                         }
                     });
                 });
@@ -1218,12 +1263,13 @@ HTML_TEMPLATE = """
             });
         }
 
-        // ==========================================
-        // FIELD OFFICER STREAMLINED UPLOAD WIZARD
-        // ==========================================
+        function exportResultsCSV() {
+            const lga = document.getElementById('resultsLgaSelect')?.value || 'all';
+            window.location.href = `/api/export-csv?lga=${encodeURIComponent(lga)}`;
+        }
+
         function loadUploadWizardData() {
             if (currentUser.role === 'Field Officer') {
-                // LOCKOUT UX: Skip steps 1-4!
                 document.getElementById('fieldOfficerLockedBox').style.display = 'block';
                 document.getElementById('fieldLockLgaWard').innerText = `LGA: ${currentUser.assigned_lga} | Ward: ${currentUser.assigned_ward}`;
                 document.getElementById('fieldLockPuName').innerText = currentUser.assigned_pu_name;
@@ -1333,9 +1379,6 @@ HTML_TEMPLATE = """
             });
         }
 
-        // ==========================================
-        // SCOPED REVIEW QUEUE
-        // ==========================================
         function loadReviewQueue() {
             const banner = document.getElementById('reviewScopeBanner');
             if (currentUser.role === 'Collation Admin') {
@@ -1394,6 +1437,8 @@ HTML_TEMPLATE = """
                         submission_id: activeModalSubmissionId, party_votes: votes,
                         rejected_votes: parseInt(document.getElementById('review_Rejected')?.value || 0),
                         status: status, notes: document.getElementById('reviewNotes')?.value || '',
+                        is_flagged: document.getElementById('reviewFlagged').checked,
+                        flag_reason: document.getElementById('reviewFlagReason').value,
                         verified_by: currentUser.full_name || currentUser.username
                     })
                 }).then(res => res.json()).then(res => {
@@ -1404,9 +1449,6 @@ HTML_TEMPLATE = """
             });
         }
 
-        // ==========================================
-        // DELEGATED USER SCOPING MANAGEMENT
-        // ==========================================
         function onRoleSelectionChanged() {
             const role = document.getElementById('adminUserRole').value;
             const gLga = document.getElementById('groupAssignLga');
@@ -1448,7 +1490,7 @@ HTML_TEMPLATE = """
                     
                     if (currentUser.role === 'LGA Admin') {
                         lgaSel.value = currentUser.assigned_lga;
-                        lgaSel.disabled = true; // Lock LGA Admin to their assigned LGA
+                        lgaSel.disabled = true;
                     } else {
                         lgaSel.disabled = false;
                     }
@@ -1485,6 +1527,7 @@ HTML_TEMPLATE = """
                 body: JSON.stringify({
                     full_name: document.getElementById('adminUserFullName').value,
                     username: document.getElementById('adminUsername').value,
+                    password: document.getElementById('adminUserPassword').value,
                     role: document.getElementById('adminUserRole').value,
                     assigned_lga: document.getElementById('adminUserLga').value,
                     assigned_ward: document.getElementById('adminUserWard').value,
@@ -1565,7 +1608,7 @@ def index():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     print(f"==================================================")
-    print(f" OGUN EAST 2027 WATCH (MICRO-SCOPED) ON PORT {port}")
+    print(f" OGUN EAST 2027 WATCH ACTIVE ON PORT {port}")
     print(f"==================================================")
     app.run(host='0.0.0.0', port=port, debug=True)
     
