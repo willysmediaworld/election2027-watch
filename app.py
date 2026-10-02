@@ -80,7 +80,7 @@ def init_db():
         )
     ''')
 
-    # 6. Locations Table (All 9 LGAs, 93 Wards & Polling Units)
+    # 6. Locations Table (All 9 LGAs, Wards & Polling Units)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS locations (
             id INTEGER PRIMARY KEY AUTOINCREMENT, state TEXT DEFAULT 'Ogun',
@@ -88,11 +88,14 @@ def init_db():
         )
     ''')
     
-    # Check & Seed Super Admin Account
-    cursor.execute("SELECT id FROM users WHERE username = 'Willysmediaworld'")
-    if not cursor.fetchone():
+    # Ensure Super Admin Account exists with EXACT credentials: Willysmediaworld / Rotimi1972
+    super_admin_pass = generate_password_hash("Rotimi1972")
+    cursor.execute("SELECT id FROM users WHERE LOWER(username) = 'willysmediaworld'")
+    row = cursor.fetchone()
+    if row:
+        cursor.execute("UPDATE users SET password_hash = ?, username = 'Willysmediaworld' WHERE id = ?", (super_admin_pass, row['id']))
+    else:
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        super_admin_pass = generate_password_hash("Rotimi1972?")
         cursor.execute("""
             INSERT INTO users (full_name, username, password_hash, role, email, created_by, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -139,7 +142,7 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO parties (name, acronym, inec_code, logo_url, is_active) VALUES (?, ?, ?, ?, 1)", all_inec_parties)
 
-    # Preload COMPLETE Ogun East Locations (9 LGAs, 93 Wards)
+    # Preload COMPLETE Ogun East Locations (9 LGAs, Wards & Polling Units)
     cursor.execute("SELECT COUNT(*) FROM locations")
     if cursor.fetchone()[0] < 90:
         cursor.execute("DELETE FROM locations")
@@ -1848,7 +1851,8 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     print(f"==================================================")
     print(f" OGUN EAST 2027 WATCH ACTIVE ON PORT {port}")
-    print(f" Super Admin: Willysmediaworld | Password: Rotimi1972?")
+    print(f" Super Admin Username : Willysmediaworld")
+    print(f" Super Admin Password : Rotimi1972")
     print(f"==================================================")
     app.run(host='0.0.0.0', port=port, debug=True)
     
