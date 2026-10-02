@@ -3585,8 +3585,8 @@ function saveNewPu() {
 </script>
  
 </body>
-</html> ==========================================
-HTML_TEMPLATE = ""  # Placeholder — Part 2 fills this
+</html>
+"""
 
 
 @app.route('/')
@@ -3604,5 +3604,3 @@ if __name__ == '__main__':
     print("  Open: http://127.0.0.1:5000")
     print("=" * 60)
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
-    
-    
