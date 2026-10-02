@@ -45,7 +45,7 @@ def init_db():
         )
     ''')
 
-    # 2. Users Table (With Password Hash & Micro-Scoping)
+    # 2. Users Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT, username TEXT UNIQUE,
@@ -59,7 +59,8 @@ def init_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS elections (
             id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT,
-            constituency TEXT, registered_voters INTEGER DEFAULT 1150000
+            constituency TEXT, registered_voters INTEGER DEFAULT 1150000,
+            is_active INTEGER DEFAULT 1
         )
     ''')
 
@@ -79,7 +80,7 @@ def init_db():
         )
     ''')
 
-    # 6. Locations Table (All 9 LGAs, Wards, and Polling Units)
+    # 6. Locations Table (All 9 LGAs, 93 Wards & Polling Units)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS locations (
             id INTEGER PRIMARY KEY AUTOINCREMENT, state TEXT DEFAULT 'Ogun',
@@ -87,34 +88,31 @@ def init_db():
         )
     ''')
     
-    # Seed Super Admin Account if database is empty
-    cursor.execute("SELECT COUNT(*) FROM users")
-    if cursor.fetchone()[0] == 0:
+    # Check & Seed Super Admin Account
+    cursor.execute("SELECT id FROM users WHERE username = 'Willysmediaworld'")
+    if not cursor.fetchone():
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        super_admin_pass = generate_password_hash("SuperAdmin2027!")
+        super_admin_pass = generate_password_hash("Rotimi1972?")
         cursor.execute("""
             INSERT INTO users (full_name, username, password_hash, role, email, created_by, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, ("Oladele Rotimi Williams", "superadmin", super_admin_pass, "Super Admin", "admin@electionwatch.ng", "System", now_str))
+        """, ("Oladele Rotimi Williams", "Willysmediaworld", super_admin_pass, "Super Admin", "admin@electionwatch.ng", "System", now_str))
 
     # Preload Complete Ogun East Elections List
     cursor.execute("SELECT COUNT(*) FROM elections")
     if cursor.fetchone()[0] == 0:
         default_elections = [
-            ("Ogun East Senatorial District Election 2027", "Senatorial", "Ogun East Senatorial District", 1150000),
-            ("Ogun State Governorship Election 2027", "Governorship", "Ogun State", 2400000),
-            ("Nigeria Presidential Election 2027", "Presidential", "National", 93000000),
-            ("Sagamu / Ikenne / Remo North Reps Election 2027", "House of Representatives", "Remo Federal Constituency", 380000),
-            ("Ijebu Ode / Odogbolu / Ijebu North East Reps Election 2027", "House of Representatives", "Ijebu Central Federal Constituency", 320000),
-            ("Ijebu North / Ijebu East / Ogun Waterside Reps Election 2027", "House of Representatives", "Ijebu Federal Constituency", 350000),
-            ("Sagamu State Constituency I Assembly Election 2027", "State House of Assembly", "Sagamu I Constituency", 95000),
-            ("Sagamu State Constituency II Assembly Election 2027", "State House of Assembly", "Sagamu II Constituency", 85000),
-            ("Ijebu Ode State Constituency Assembly Election 2027", "State House of Assembly", "Ijebu Ode Constituency", 110000),
-            ("Local Government Chairmanship Election 2027", "Local Government", "Ogun East LGAs", 1150000)
+            ("Ogun East Senatorial District Election 2027", "Senatorial", "Ogun East Senatorial District", 1150000, 1),
+            ("Ogun State Governorship Election 2027", "Governorship", "Ogun State", 2400000, 1),
+            ("Nigeria Presidential Election 2027", "Presidential", "National", 93000000, 1),
+            ("House of Representatives Election 2027", "House of Representatives", "Federal Constituency", 380000, 1),
+            ("State House of Assembly Election 2027", "State House of Assembly", "State Constituency", 110000, 1),
+            ("Local Government Chairmanship Election 2027", "LGA Chairman", "Ogun East LGAs", 1150000, 1),
+            ("Local Government Councillorship Election 2027", "LGA Councillor", "Ogun East Wards", 1150000, 1)
         ]
-        cursor.executemany("INSERT INTO elections (name, type, constituency, registered_voters) VALUES (?, ?, ?, ?)", default_elections)
+        cursor.executemany("INSERT INTO elections (name, type, constituency, registered_voters, is_active) VALUES (?, ?, ?, ?, ?)", default_elections)
 
-    # Preload All 19 Active INEC Registered Political Parties
+    # Preload ALL 19 Registered INEC Political Parties
     cursor.execute("SELECT COUNT(*) FROM parties")
     if cursor.fetchone()[0] < 19:
         cursor.execute("DELETE FROM parties")
@@ -141,63 +139,133 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO parties (name, acronym, inec_code, logo_url, is_active) VALUES (?, ?, ?, ?, 1)", all_inec_parties)
 
-    # Preload ALL 9 LGAS of Ogun East Senatorial District with official Wards & Polling Units
+    # Preload COMPLETE Ogun East Locations (9 LGAs, 93 Wards)
     cursor.execute("SELECT COUNT(*) FROM locations")
-    if cursor.fetchone()[0] < 50:
+    if cursor.fetchone()[0] < 90:
         cursor.execute("DELETE FROM locations")
         ogun_east_locations = [
-            # 1. SAGAMU LGA (27/18)
+            # 1. SAGAMU LGA (15 Wards)
             ("Ogun", "Sagamu", "Makun I", "ST. PAULS PRY SCH MAKUN I", "27/18/01/001"),
             ("Ogun", "Sagamu", "Makun I", "EWUSI PALACE SQUARE", "27/18/01/002"),
             ("Ogun", "Sagamu", "Makun II", "AJEDE COMMUNITY SCH", "27/18/02/001"),
             ("Ogun", "Sagamu", "Offin/Sotubo", "OFFIN COMMUNITY HALL", "27/18/03/001"),
             ("Ogun", "Sagamu", "Sabo I", "SABO MARKET SQUARE", "27/18/04/001"),
-            ("Ogun", "Sagamu", "Ogijo/Ikosi", "OGIJO COMMUNITY HIGH SCH", "27/18/05/001"),
+            ("Ogun", "Sagamu", "Sabo II", "SABO GARAGE FRONTAGE", "27/18/05/001"),
+            ("Ogun", "Sagamu", "Ogijo/Ikosi", "OGIJO COMMUNITY HIGH SCH", "27/18/06/001"),
+            ("Ogun", "Sagamu", "Simawa", "SIMAWA HIGH SCH", "27/18/07/001"),
+            ("Ogun", "Sagamu", "Latawa", "LATAWA COMMUNITY SCH", "27/18/08/001"),
+            ("Ogun", "Sagamu", "Ode-Lemo", "ODE-LEMO TOWN HALL", "27/18/09/001"),
+            ("Ogun", "Sagamu", "Agbowa", "AGBOWA PRY SCH", "27/18/10/001"),
+            ("Ogun", "Sagamu", "Isokun", "ISOKUN SQUARE", "27/18/11/001"),
+            ("Ogun", "Sagamu", "Ijagba", "IJAGBA TOWN HALL", "27/18/12/001"),
+            ("Ogun", "Sagamu", "Ojumele", "OJUMELE SQUARE", "27/18/13/001"),
+            ("Ogun", "Sagamu", "Ewusi", "EWUSI COMMUNITY PRY SCH", "27/18/14/001"),
+            ("Ogun", "Sagamu", "Aiyegbami", "AIYEGBAMI MARKET SQUARE", "27/18/15/001"),
 
-            # 2. IJEBU ODE LGA (27/11)
+            # 2. IJEBU ODE LGA (11 Wards)
             ("Ogun", "Ijebu Ode", "Porogun I", "POROGUN CHURCH PRY SCH", "27/11/01/001"),
             ("Ogun", "Ijebu Ode", "Porogun I", "COURT HALL POROGUN", "27/11/01/002"),
             ("Ogun", "Ijebu Ode", "Porogun II", "ITA OLE MARKET SQUARE", "27/11/02/001"),
             ("Ogun", "Ijebu Ode", "Ijasi", "IJASI TOWN HALL", "27/11/03/001"),
             ("Ogun", "Ijebu Ode", "Molipa", "MOLIPA HIGH SCHOOL", "27/11/04/001"),
+            ("Ogun", "Ijebu Ode", "Isabo", "ISABO SQUARE", "27/11/05/001"),
+            ("Ogun", "Ijebu Ode", "Odo-Esa", "ODO-ESA COMMUNITY SCH", "27/11/06/001"),
+            ("Ogun", "Ijebu Ode", "Itantebo", "ITANTEBO HALL", "27/11/07/001"),
+            ("Ogun", "Ijebu Ode", "Sabo/Kuku", "SABO KUKU PRY SCH", "27/11/08/001"),
+            ("Ogun", "Ijebu Ode", "Mobalufon", "MOBALUFON PRY SCH", "27/11/09/001"),
+            ("Ogun", "Ijebu Ode", "Oke-Aje", "OKE-AJE MARKET SQUARE", "27/11/10/001"),
+            ("Ogun", "Ijebu Ode", "Agboro", "AGBORO COMMUNITY SCH", "27/11/11/001"),
 
-            # 3. IJEBU NORTH LGA (27/09)
+            # 3. IJEBU NORTH LGA (11 Wards)
             ("Ogun", "Ijebu North", "Ago Iwoye I", "METHODIST PRY SCH AGO IWOYE", "27/09/01/001"),
             ("Ogun", "Ijebu North", "Ago Iwoye II", "FOWOSEJE TOWN HALL", "27/09/02/001"),
             ("Ogun", "Ijebu North", "Oru/Awa/Ilaporu", "ORU TOWN HALL", "27/09/03/001"),
             ("Ogun", "Ijebu North", "Oke Sopin", "OKE SOPIN MARKET SQUARE", "27/09/04/001"),
+            ("Ogun", "Ijebu North", "Oke-Agbo", "OKE-AGBO PRY SCH", "27/09/05/001"),
+            ("Ogun", "Ijebu North", "Atikori", "ATIKORI HIGH SCH", "27/09/06/001"),
+            ("Ogun", "Ijebu North", "Ako-Onigbagbo", "AKO COMMUNITY SCH", "27/09/07/001"),
+            ("Ogun", "Ijebu North", "Odoragba", "ODORAGBA SQUARE", "27/09/08/001"),
+            ("Ogun", "Ijebu North", "Mamu/Ehin-Etiri", "MAMU MARKET SQUARE", "27/09/09/001"),
+            ("Ogun", "Ijebu North", "Agunboye", "AGUNBOYE PRY SCH", "27/09/10/001"),
+            ("Ogun", "Ijebu North", "Podo", "PODO COMMUNITY HALL", "27/09/11/001"),
 
-            # 4. IJEBU EAST LGA (27/07)
+            # 4. IJEBU EAST LGA (11 Wards)
             ("Ogun", "Ijebu East", "Ijebu Mushin I", "ODOSEGBUREN SQUARE", "27/07/01/001"),
+            ("Ogun", "Ijebu East", "Ijebu Mushin II", "MUSHIN CENTRAL PRY SCH", "27/07/02/001"),
             ("Ogun", "Ijebu East", "Ijebu Ife I", "ITAKO OLUWERI SQUARE", "27/07/03/001"),
+            ("Ogun", "Ijebu East", "Ijebu Ife II", "IFE TOWN HALL", "27/07/04/001"),
+            ("Ogun", "Ijebu East", "Owu", "OWU PRY SCH", "27/07/05/001"),
+            ("Ogun", "Ijebu East", "Imobi I", "IMOBI COMMUNITY SCH", "27/07/06/001"),
+            ("Ogun", "Ijebu East", "Imobi II", "IMOBI CENTRAL HALL", "27/07/07/001"),
             ("Ogun", "Ijebu East", "Ogbere", "PALACE FRONTAGE OGBERE", "27/07/08/001"),
-            ("Ogun", "Ijebu East", "Ajebandele", "ST. SAVIOUR’S SCH AJEBANDELE", "27/07/11/001"),
+            ("Ogun", "Ijebu East", "Ajebandele", "ST. SAVIOUR’S SCH AJEBANDELE", "27/07/09/001"),
+            ("Ogun", "Ijebu East", "Fowoseje", "FOWOSEJE SCH", "27/07/10/001"),
+            ("Ogun", "Ijebu East", "Telefoni", "TELEFONI COMMUNITY HALL", "27/07/11/001"),
 
-            # 5. IKENNE LGA (27/12)
+            # 5. IKENNE LGA (10 Wards)
             ("Ogun", "Ikenne", "Iperu I", "AKESAN MARKET SQUARE IPERU", "27/12/01/001"),
             ("Ogun", "Ikenne", "Iperu II", "CHRIST CHURCH PRY SCH IPERU", "27/12/02/001"),
-            ("Ogun", "Ikenne", "Ikenne I", "OBAFEMI AWOLOWO TOWN HALL", "27/12/03/001"),
-            ("Ogun", "Ikenne", "Ilisan I", "ILISAN TOWN HALL", "27/12/04/001"),
+            ("Ogun", "Ikenne", "Iperu III", "IPERU HIGH SCH", "27/12/03/001"),
+            ("Ogun", "Ikenne", "Ikenne I", "OBAFEMI AWOLOWO TOWN HALL", "27/12/04/001"),
+            ("Ogun", "Ikenne", "Ikenne II", "IKENNE MARKET SQUARE", "27/12/05/001"),
+            ("Ogun", "Ikenne", "Ikenne III", "COMMUNITY SCH IKENNE", "27/12/06/001"),
+            ("Ogun", "Ikenne", "Ilisan I", "ILISAN TOWN HALL", "27/12/07/001"),
+            ("Ogun", "Ikenne", "Ilisan II", "ILISAN HIGH SCH", "27/12/08/001"),
+            ("Ogun", "Ikenne", "Ogere I", "OGERE TOWN HALL", "27/12/09/001"),
+            ("Ogun", "Ikenne", "Ogere II", "OGERE MARKET SQUARE", "27/12/10/001"),
 
-            # 6. REMO NORTH LGA (27/17)
+            # 6. REMO NORTH LGA (10 Wards)
             ("Ogun", "Remo North", "Isara I", "ISARA TOWN HALL", "27/17/01/001"),
-            ("Ogun", "Remo North", "Ipara", "IPARA MARKET SQUARE", "27/17/02/001"),
-            ("Ogun", "Remo North", "Ode I", "ODE REMO PRY SCH", "27/17/03/001"),
+            ("Ogun", "Remo North", "Isara II", "AFIN ISARA FRONTAGE", "27/17/02/001"),
+            ("Ogun", "Remo North", "Ipara", "IPARA MARKET SQUARE", "27/17/03/001"),
+            ("Ogun", "Remo North", "Ode I", "ODE REMO PRY SCH", "27/17/04/001"),
+            ("Ogun", "Remo North", "Ode II", "ODE MARKET HALL", "27/17/05/001"),
+            ("Ogun", "Remo North", "Akaka", "AKAKA TOWN HALL", "27/17/06/001"),
+            ("Ogun", "Remo North", "Hara/Ilara", "ILARA HIGH SCH", "27/17/07/001"),
+            ("Ogun", "Remo North", "Ilara/Orile", "ORILE ILARA SQUARE", "27/17/08/001"),
+            ("Ogun", "Remo North", "Fowoseje", "FOWOSEJE HALL", "27/17/09/001"),
+            ("Ogun", "Remo North", "Orile Oko", "ORILE OKO PRY SCH", "27/17/10/001"),
 
-            # 7. IJEBU NORTH EAST LGA (27/10)
+            # 7. IJEBU NORTH EAST LGA (10 Wards)
             ("Ogun", "Ijebu North East", "Atan", "ATAN TOWN HALL", "27/10/01/001"),
             ("Ogun", "Ijebu North East", "Ilese", "ILESE GRAMMAR SCH", "27/10/02/001"),
             ("Ogun", "Ijebu North East", "Itamapako", "ITAMAPAKO PRY SCH", "27/10/03/001"),
+            ("Ogun", "Ijebu North East", "Odosenbora", "ODOSENBORA SQUARE", "27/10/04/001"),
+            ("Ogun", "Ijebu North East", "Imusin", "IMUSIN TOWN HALL", "27/10/05/001"),
+            ("Ogun", "Ijebu North East", "Oke-Eri", "OKE-ERI HALL", "27/10/06/001"),
+            ("Ogun", "Ijebu North East", "Imede", "IMEDE PRY SCH", "27/10/07/001"),
+            ("Ogun", "Ijebu North East", "Ehin-Osun", "EHIN-OSUN HALL", "27/10/08/001"),
+            ("Ogun", "Ijebu North East", "Ososa North", "OSOSA HIGH SCH", "27/10/09/001"),
+            ("Ogun", "Ijebu North East", "Imuroko", "IMUROKO COMMUNITY SCH", "27/10/10/001"),
 
-            # 8. OGUN WATERSIDE LGA (27/15)
+            # 8. OGUN WATERSIDE LGA (10 Wards)
             ("Ogun", "Ogun Waterside", "Abigi", "ABIGI TOWN HALL", "27/15/01/001"),
             ("Ogun", "Ogun Waterside", "Iwopin", "IWOPIN JETTY SQUARE", "27/15/02/001"),
             ("Ogun", "Ogun Waterside", "Ibiade", "IBIADE MARKET SQUARE", "27/15/03/001"),
+            ("Ogun", "Ogun Waterside", "Oni", "ONI TOWN HALL", "27/15/04/001"),
+            ("Ogun", "Ogun Waterside", "Agbadu", "AGBADU PRY SCH", "27/15/05/001"),
+            ("Ogun", "Ogun Waterside", "Lomiro", "LOMIRO HALL", "27/15/06/001"),
+            ("Ogun", "Ogun Waterside", "Makun-Omi", "MAKUN-OMI SQUARE", "27/15/07/001"),
+            ("Ogun", "Ogun Waterside", "Ode-Omi", "ODE-OMI JETTY", "27/15/08/001"),
+            ("Ogun", "Ogun Waterside", "Ayede", "AYEDE COMMUNITY SCH", "27/15/09/001"),
+            ("Ogun", "Ogun Waterside", "Ayila", "AYILA TOWN HALL", "27/15/10/001"),
 
-            # 9. ODOGBOLU LGA (27/14)
+            # 9. ODOGBOLU LGA (15 Wards)
             ("Ogun", "Odogbolu", "Odogbolu I", "ODOGBOLU TOWN HALL", "27/14/01/001"),
-            ("Ogun", "Odogbolu", "Aiyepe", "AIYEPE CENTRAL SCH", "27/14/02/001"),
-            ("Ogun", "Odogbolu", "Ososa", "OSOSA PRY SCHOOL", "27/14/03/001")
+            ("Ogun", "Odogbolu", "Odogbolu II", "ODOGBOLU HIGH SCH", "27/14/02/001"),
+            ("Ogun", "Odogbolu", "Aiyepe", "AIYEPE CENTRAL SCH", "27/14/03/001"),
+            ("Ogun", "Odogbolu", "Ososa", "OSOSA PRY SCHOOL", "27/14/04/001"),
+            ("Ogun", "Odogbolu", "Okun-Owa", "OKUN-OWA TOWN HALL", "27/14/05/001"),
+            ("Ogun", "Odogbolu", "Ala", "ALA COMMUNITY SCH", "27/14/06/001"),
+            ("Ogun", "Odogbolu", "Ala/Igbile", "IGBILE SCH", "27/14/07/001"),
+            ("Ogun", "Odogbolu", "Ibefun", "IBEFUN TOWN HALL", "27/14/08/001"),
+            ("Ogun", "Odogbolu", "Leguru I", "LEGURU HIGH SCH", "27/14/09/001"),
+            ("Ogun", "Odogbolu", "Leguru II", "LEGURU HALL", "27/14/10/001"),
+            ("Ogun", "Odogbolu", "Mobalufon", "MOBALUFON SCH", "27/14/11/001"),
+            ("Ogun", "Odogbolu", "Gbedouru", "GBEDOURU SQUARE", "27/14/12/001"),
+            ("Ogun", "Odogbolu", "Ogbo", "OGBO COMMUNITY SCH", "27/14/13/001"),
+            ("Ogun", "Odogbolu", "Egbe", "EGBE TOWN HALL", "27/14/14/001"),
+            ("Ogun", "Odogbolu", "Imosan", "IMOSAN PRY SCH", "27/14/15/001")
         ]
         cursor.executemany("INSERT INTO locations (state, lga, ward, polling_unit, pu_code) VALUES (?, ?, ?, ?, ?)", ogun_east_locations)
         
@@ -210,7 +278,6 @@ init_db()
 # WORKFLOW ENGINE & ROUTING LOGIC
 # ==========================================
 def get_assigned_verifier(submission_lga, submission_ward):
-    """Finds the designated Ward Collation Admin or LGA Admin for this submission."""
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT full_name FROM users WHERE role = 'Collation Admin' AND LOWER(assigned_lga) = LOWER(?) AND LOWER(assigned_ward) = LOWER(?) LIMIT 1", (submission_lga, submission_ward))
@@ -262,21 +329,19 @@ def save_pending_photo_submission(data, username):
     conn.close()
     return {
         "status": "success",
-        "message": f"Result sheet submitted for {pu_name} ({pu_code})! Routed to [{assigned_admin}] for verification."
+        "message": f"EC8A Result Sheet submitted for {pu_name} ({pu_code})! Routed to [{assigned_admin}] for verification."
     }
 
-def get_live_collation(election_id=None, filter_lga=None):
+def get_live_collation(election_id=None, election_type=None, filter_lga=None):
     conn = get_db()
     cursor = conn.cursor()
 
-    target_election_name = None
     registered_voters = 1150000
 
     if election_id and str(election_id).strip() != 'all':
         cursor.execute("SELECT name, registered_voters FROM elections WHERE id = ? OR name = ?", (str(election_id), str(election_id)))
         e_row = cursor.fetchone()
         if e_row:
-            target_election_name = e_row['name']
             registered_voters = e_row['registered_voters'] or 1150000
 
     cursor.execute("SELECT full_name, party, photo_url FROM candidates")
@@ -295,9 +360,19 @@ def get_live_collation(election_id=None, filter_lga=None):
 
     query = "SELECT party_votes, valid_votes, rejected_votes, total_votes_cast FROM submissions WHERE status = 'ACCEPTED'"
     params = []
-    if target_election_name:
+    
+    if election_id and str(election_id).strip() != 'all':
         query += " AND (election_id = ? OR election_name = ?)"
-        params.extend([str(election_id), target_election_name])
+        params.extend([str(election_id), str(election_id)])
+        
+    if election_type and str(election_type).strip() != 'all':
+        cursor.execute("SELECT name FROM elections WHERE type = ?", (election_type,))
+        matched_elections = [r['name'] for r in cursor.fetchall()]
+        if matched_elections:
+            placeholders = ','.join(['?'] * len(matched_elections))
+            query += f" AND election_name IN ({placeholders})"
+            params.extend(matched_elections)
+
     if filter_lga and filter_lga != 'all':
         query += " AND LOWER(lga) = LOWER(?)"
         params.append(filter_lga)
@@ -307,9 +382,9 @@ def get_live_collation(election_id=None, filter_lga=None):
 
     pu_query = "SELECT COUNT(DISTINCT pu_code) FROM submissions WHERE status = 'ACCEPTED'"
     pu_params = []
-    if target_election_name:
+    if election_id and str(election_id).strip() != 'all':
         pu_query += " AND (election_id = ? OR election_name = ?)"
-        pu_params.extend([str(election_id), target_election_name])
+        pu_params.extend([str(election_id), str(election_id)])
     if filter_lga and filter_lga != 'all':
         pu_query += " AND LOWER(lga) = LOWER(?)"
         pu_params.append(filter_lga)
@@ -405,6 +480,16 @@ def api_login():
 
 @app.route('/api/upload-photo-result', methods=['POST'])
 def upload_photo_result():
+    submitted_by = request.form.get("submitted_by", "")
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT role FROM users WHERE username = ?", (submitted_by,))
+    user = cursor.fetchone()
+    conn.close()
+
+    if user and user['role'] == 'Collation Admin':
+        return jsonify({"status": "error", "message": "Collation Admins are restricted to result verification only and cannot upload result sheets."}), 403
+
     if 'photo' not in request.files:
         return jsonify({"status": "error", "message": "No photograph attached"}), 400
     file = request.files['photo']
@@ -413,7 +498,6 @@ def upload_photo_result():
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
         
-        username = request.form.get("submitted_by", "")
         data = {
             "election_id": request.form.get("election_id", "1"),
             "election_name": request.form.get("election_name", "Ogun East Senatorial District Election 2027"),
@@ -423,7 +507,7 @@ def upload_photo_result():
             "pu_code": request.form.get("pu_code", ""),
             "image_url": f"/{filepath}"
         }
-        return jsonify(save_pending_photo_submission(data, username))
+        return jsonify(save_pending_photo_submission(data, submitted_by))
     return jsonify({"status": "error", "message": "Invalid file format"}), 400
 
 @app.route('/api/review-queue', methods=['GET'])
@@ -484,30 +568,56 @@ def admin_verify_collate_route():
 
 @app.route('/api/live-results', methods=['GET'])
 def live_results():
-    election_id = request.args.get('election_id', '1')
+    election_id = request.args.get('election_id', 'all')
+    election_type = request.args.get('election_type', 'all')
     filter_lga = request.args.get('lga', '')
-    return jsonify(get_live_collation(election_id, filter_lga))
+    return jsonify(get_live_collation(election_id, election_type, filter_lga))
 
 @app.route('/api/ward-results', methods=['GET'])
 def ward_results():
     filter_lga = request.args.get('lga', '')
+    election_type = request.args.get('election_type', '')
+
     conn = get_db()
     cursor = conn.cursor()
+    
+    query = "SELECT * FROM submissions WHERE status = 'ACCEPTED'"
+    params = []
+
     if filter_lga and filter_lga != 'all':
-        cursor.execute("SELECT * FROM submissions WHERE status = 'ACCEPTED' AND LOWER(lga) = LOWER(?) ORDER BY ward, polling_unit", (filter_lga,))
-    else:
-        cursor.execute("SELECT * FROM submissions WHERE status = 'ACCEPTED' ORDER BY lga, ward, polling_unit")
+        query += " AND LOWER(lga) = LOWER(?)"
+        params.append(filter_lga)
+
+    if election_type and election_type != 'all':
+        cursor.execute("SELECT name FROM elections WHERE type = ?", (election_type,))
+        matched_elections = [r['name'] for r in cursor.fetchall()]
+        if matched_elections:
+            placeholders = ','.join(['?'] * len(matched_elections))
+            query += f" AND election_name IN ({placeholders})"
+            params.extend(matched_elections)
+
+    query += " ORDER BY lga, ward, polling_unit"
+    cursor.execute(query, params)
     rows = [dict(r) for r in cursor.fetchall()]
+
+    cursor.execute("SELECT acronym FROM parties ORDER BY acronym ASC")
+    all_parties = [p['acronym'] for p in cursor.fetchall()]
     conn.close()
+
     for r in rows:
         r['party_votes'] = json.loads(r['party_votes']) if r['party_votes'] else {}
-    return jsonify(rows)
+
+    return jsonify({"rows": rows, "parties": all_parties})
 
 @app.route('/api/export-csv', methods=['GET'])
 def export_csv():
     filter_lga = request.args.get('lga', '')
     conn = get_db()
     cursor = conn.cursor()
+
+    cursor.execute("SELECT acronym FROM parties ORDER BY acronym ASC")
+    all_parties = [p['acronym'] for p in cursor.fetchall()]
+
     if filter_lga and filter_lga != 'all':
         cursor.execute("SELECT * FROM submissions WHERE status = 'ACCEPTED' AND LOWER(lga) = LOWER(?)", (filter_lga,))
     else:
@@ -517,39 +627,62 @@ def export_csv():
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['Submission ID', 'Election Name', 'LGA', 'Ward', 'Polling Unit', 'PU Code', 'Valid Votes', 'Rejected Votes', 'Total Cast', 'Verified By', 'Timestamp'])
+    header = ['Submission ID', 'Election Name', 'LGA', 'Ward', 'Polling Unit', 'PU Code'] + all_parties + ['Valid Votes', 'Rejected Votes', 'Total Cast', 'Verified By', 'Timestamp']
+    writer.writerow(header)
 
     for r in rows:
-        writer.writerow([r['id'], r['election_name'], r['lga'], r['ward'], r['polling_unit'], r['pu_code'], r['valid_votes'], r['rejected_votes'], r['total_votes_cast'], r['verified_by'], r['verified_at']])
+        pv = json.loads(r['party_votes']) if r['party_votes'] else {}
+        p_counts = [pv.get(p, 0) for p in all_parties]
+        row = [r['id'], r['election_name'], r['lga'], r['ward'], r['polling_unit'], r['pu_code']] + p_counts + [r['valid_votes'], r['rejected_votes'], r['total_votes_cast'], r['verified_by'], r['verified_at']]
+        writer.writerow(row)
 
     output.seek(0)
     return Response(
         output.getvalue(),
         mimetype="text/csv",
-        headers={"Content-disposition": "attachment; filename=Ogun_East_2027_Results.csv"}
+        headers={"Content-disposition": "attachment; filename=Ogun_East_2027_Full_Results.csv"}
     )
 
 @app.route('/api/admin/users', methods=['GET', 'POST'])
 def handle_users():
     conn = get_db()
     cursor = conn.cursor()
+    
     if request.method == 'POST':
         d = request.json
         creator = d.get('created_by_user', 'Super Admin')
+        role = d.get('role')
+        
+        cursor.execute("SELECT role, assigned_lga FROM users WHERE username = ?", (creator,))
+        creator_user = cursor.fetchone()
+        
+        if creator_user:
+            c_role = creator_user['role']
+            if c_role == 'Super Admin' and role not in ['LGA Admin', 'Viewer']:
+                conn.close()
+                return jsonify({"success": False, "message": "Super Admin can only create LGA Admin or Viewer accounts."}), 403
+            elif c_role == 'LGA Admin' and role not in ['Collation Admin', 'Field Officer', 'Viewer']:
+                conn.close()
+                return jsonify({"success": False, "message": "LGA Admin can only create Collation Admin, Field Officer, or Viewer accounts."}), 403
+
         pass_hash = generate_password_hash(d.get('password', 'Pass1234!'))
         
-        cursor.execute("""
-            INSERT INTO users (full_name, username, password_hash, role, assigned_lga, assigned_ward, assigned_pu_code, assigned_pu_name, email, created_by, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            d.get('full_name'), d.get('username'), pass_hash, d.get('role'),
-            d.get('assigned_lga', ''), d.get('assigned_ward', ''),
-            d.get('assigned_pu_code', ''), d.get('assigned_pu_name', ''),
-            d.get('email'), creator, datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        ))
-        conn.commit()
-        conn.close()
-        return jsonify({"success": True, "message": f"User '{d.get('username')}' created!"})
+        try:
+            cursor.execute("""
+                INSERT INTO users (full_name, username, password_hash, role, assigned_lga, assigned_ward, assigned_pu_code, assigned_pu_name, email, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                d.get('full_name'), d.get('username'), pass_hash, role,
+                d.get('assigned_lga', ''), d.get('assigned_ward', ''),
+                d.get('assigned_pu_code', ''), d.get('assigned_pu_name', ''),
+                d.get('email'), creator, datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ))
+            conn.commit()
+            conn.close()
+            return jsonify({"success": True, "message": f"Account '{d.get('username')}' ({role}) created successfully!"})
+        except sqlite3.IntegrityError:
+            conn.close()
+            return jsonify({"success": False, "message": f"Username '{d.get('username')}' already exists."}), 400
     
     requester = request.args.get('username', '')
     cursor.execute("SELECT role, assigned_lga FROM users WHERE username = ?", (requester,))
@@ -570,15 +703,33 @@ def handle_elections():
     cursor = conn.cursor()
     if request.method == 'POST':
         d = request.json
-        cursor.execute("INSERT INTO elections (name, type, constituency, registered_voters) VALUES (?, ?, ?, ?)",
-                       (d.get('name'), d.get('type'), d.get('constituency'), d.get('registered_voters', 250000)))
+        cursor.execute("INSERT INTO elections (name, type, constituency, registered_voters, is_active) VALUES (?, ?, ?, ?, 1)",
+                       (d.get('name'), d.get('type'), d.get('constituency'), d.get('registered_voters', 1150000)))
         conn.commit()
         conn.close()
         return jsonify({"success": True, "message": "Election Created!"})
-    cursor.execute("SELECT * FROM elections ORDER BY id ASC")
+        
+    only_active = request.args.get('active_only', '0')
+    if only_active == '1':
+        cursor.execute("SELECT * FROM elections WHERE is_active = 1 ORDER BY id ASC")
+    else:
+        cursor.execute("SELECT * FROM elections ORDER BY id ASC")
+        
     rows = [dict(r) for r in cursor.fetchall()]
     conn.close()
     return jsonify(rows)
+
+@app.route('/api/admin/toggle-election', methods=['POST'])
+def toggle_election():
+    d = request.json
+    election_id = d.get('id')
+    is_active = d.get('is_active', 1)
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE elections SET is_active = ? WHERE id = ?", (is_active, election_id))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": "Election status updated!"})
 
 @app.route('/api/admin/parties', methods=['GET'])
 def handle_parties():
@@ -623,7 +774,7 @@ def handle_candidates():
 
         conn.commit()
         conn.close()
-        return jsonify({"success": True, "message": f"Candidate '{full_name}' ({party}) successfully updated!"})
+        return jsonify({"success": True, "message": f"Candidate '{full_name}' ({party}) updated!"})
         
     cursor.execute("SELECT * FROM candidates ORDER BY id DESC")
     rows = [dict(r) for r in cursor.fetchall()]
@@ -736,9 +887,10 @@ HTML_TEMPLATE = """
         .party-bar-fill { height: 100%; background-color: #2563eb; }
 
         .table-responsive { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 20px; }
-        .results-table { width: 100%; border-collapse: collapse; font-size: 12.5px; text-align: left; }
-        .results-table th, .results-table td { padding: 10px 8px; border-bottom: 1px solid #e2e8f0; }
-        .results-table th { background-color: #f1f5f9; color: #0c235c; font-weight: 800; }
+        .results-table { width: 100%; border-collapse: collapse; font-size: 11.5px; text-align: left; }
+        .results-table th, .results-table td { padding: 8px 6px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+        .results-table th { background-color: #0c235c; color: #ffffff; font-weight: 800; text-align: center; }
+        .results-table td { text-align: center; }
 
         .wizard-step { display: none; }
         .wizard-step.active { display: block; }
@@ -813,8 +965,17 @@ HTML_TEMPLATE = """
 
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:12px;">
                     <div class="input-group" style="margin:0;">
-                        <label>Select Election</label>
-                        <select id="liveElectionSelect" onchange="onLiveFilterChanged()"></select>
+                        <label>Election Category</label>
+                        <select id="liveTypeSelect" onchange="onLiveFilterChanged()">
+                            <option value="all">-- All Categories --</option>
+                            <option value="Presidential">Presidential</option>
+                            <option value="Senatorial">Senatorial</option>
+                            <option value="House of Representatives">House of Reps</option>
+                            <option value="Governorship">Governorship</option>
+                            <option value="State House of Assembly">State Assembly</option>
+                            <option value="LGA Chairman">LGA Chairman</option>
+                            <option value="LGA Councillor">LGA Councillor</option>
+                        </select>
                     </div>
                     <div class="input-group" style="margin:0;">
                         <label>Filter LGA</label>
@@ -855,22 +1016,35 @@ HTML_TEMPLATE = """
             <!-- TAB 2: WARD / PU RESULTS TABLE -->
             <section id="tab-results" class="tab-content">
                 <div class="section-heading">
-                    <h2>📋 LGA & Ward Breakdown</h2>
+                    <h2>📋 Ward Breakdown & Full Table</h2>
                     <button class="btn-submit" style="width:auto; padding:6px 12px; font-size:12px; background:#16a34a;" onclick="exportResultsCSV()">📄 Export CSV</button>
                 </div>
                 
-                <div class="input-group" style="margin-bottom:12px;">
-                    <label>Filter by Local Government (LGA)</label>
-                    <select id="resultsLgaSelect" onchange="loadWardTable()"></select>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:12px;">
+                    <div class="input-group" style="margin:0;">
+                        <label>Election Category</label>
+                        <select id="resultsTypeSelect" onchange="loadWardTable()">
+                            <option value="all">-- All Categories --</option>
+                            <option value="Presidential">Presidential</option>
+                            <option value="Senatorial">Senatorial</option>
+                            <option value="House of Representatives">House of Reps</option>
+                            <option value="Governorship">Governorship</option>
+                            <option value="State House of Assembly">State Assembly</option>
+                            <option value="LGA Chairman">LGA Chairman</option>
+                            <option value="LGA Councillor">LGA Councillor</option>
+                        </select>
+                    </div>
+                    <div class="input-group" style="margin:0;">
+                        <label>Local Government (LGA)</label>
+                        <select id="resultsLgaSelect" onchange="loadWardTable()"></select>
+                    </div>
                 </div>
 
                 <div class="table-responsive">
                     <table class="results-table">
-                        <thead>
-                            <tr><th>LGA</th><th>Ward</th><th>Polling Unit</th><th>APC</th><th>PDP</th><th>LP</th><th>NNPP</th><th>Valid</th></tr>
-                        </thead>
+                        <thead id="resultsTableHead"></thead>
                         <tbody id="resultsTableBody">
-                            <tr><td colspan="8" style="text-align:center;">No collated results yet.</td></tr>
+                            <tr><td colspan="25" style="text-align:center;">No collated results yet.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -880,6 +1054,11 @@ HTML_TEMPLATE = """
             <section id="tab-upload" class="tab-content">
                 <div class="section-heading"><h2>📥 Submit Result Sheet (EC8A)</h2></div>
 
+                <div id="collationAdminDisabledBox" style="display:none; background:#fef2f2; border:2px solid #ef4444; padding:16px; border-radius:12px; margin-bottom:15px; text-align:center;">
+                    <h3 style="color:#991b1b; font-size:15px;">🚫 Upload Restricted</h3>
+                    <p style="font-size:13px; color:#7f1d1d; margin-top:4px;">As a Collation Admin, your role is strictly for reviewing and collating incoming results. Switch to the <strong>Review Tab</strong> to process submitted result sheets.</p>
+                </div>
+
                 <div id="fieldOfficerLockedBox" style="display:none; background:#eff6ff; border:2px solid #2563eb; padding:16px; border-radius:12px; margin-bottom:15px;">
                     <h3 style="color:#1e40af; font-size:15px; margin-bottom:6px;">🔒 Your Pre-Assigned Polling Unit</h3>
                     <p style="font-size:13px; color:#1e3a8a;" id="fieldLockLgaWard"></p>
@@ -887,49 +1066,51 @@ HTML_TEMPLATE = """
                     <p style="font-size:12px; font-weight:700; color:#2563eb;" id="fieldLockPuCode"></p>
                 </div>
 
-                <div id="uploadStep1" class="wizard-step active">
-                    <h3 style="margin-bottom:12px; color:#0c235c;">1. Select Local Government Area (LGA)</h3>
-                    <div class="btn-stack" id="lgasListStack"></div>
-                </div>
-
-                <div id="uploadStep2" class="wizard-step">
-                    <h3 style="margin-bottom:12px; color:#0c235c;">2. Select Election Category</h3>
-                    <div class="btn-stack" id="electionsListStack"></div>
-                    <button class="btn-secondary" style="margin-top:10px;" id="btnBackToStep1" onclick="goToUploadStep(1)">← Back</button>
-                </div>
-
-                <div id="uploadStep3" class="wizard-step">
-                    <h3 style="margin-bottom:12px; color:#0c235c;">3. Select Ward</h3>
-                    <div class="btn-stack" id="wardsListStack"></div>
-                    <button class="btn-secondary" style="margin-top:10px;" onclick="goToUploadStep(2)">← Back</button>
-                </div>
-
-                <div id="uploadStep4" class="wizard-step">
-                    <h3 style="margin-bottom:12px; color:#0c235c;">4. Select Polling Unit</h3>
-                    <div class="btn-stack" id="pusListStack"></div>
-                    <button class="btn-secondary" style="margin-top:10px;" onclick="goToUploadStep(3)">← Back</button>
-                </div>
-
-                <div id="uploadStep5" class="wizard-step">
-                    <h3 style="margin-bottom:12px; color:#0c235c;">5. Capture / Attach EC8A Photo</h3>
-                    <div style="background:#1d3557; color:#fff; padding:14px; border-radius:10px; margin-bottom:15px;">
-                        <h4 id="summaryElection">Ogun East Senatorial Election</h4>
-                        <p id="summaryWardPU" style="font-size:12px; color:#a8dadc; margin-top:4px;"></p>
+                <div id="uploadWizardContainer">
+                    <div id="uploadStep1" class="wizard-step active">
+                        <h3 style="margin-bottom:12px; color:#0c235c;">1. Select Local Government Area (LGA)</h3>
+                        <div class="btn-stack" id="lgasListStack"></div>
                     </div>
 
-                    <div style="margin-bottom:15px;">
-                        <label class="btn-action" style="display:block; text-align:center; background:#2563eb; cursor:pointer;">
-                            📷 Take Photo / Attach Image
-                            <input type="file" id="ec8aPhoto" accept="image/*" style="display:none;" onchange="previewUploadImage(this)">
-                        </label>
+                    <div id="uploadStep2" class="wizard-step">
+                        <h3 style="margin-bottom:12px; color:#0c235c;">2. Select Election Category</h3>
+                        <div class="btn-stack" id="electionsListStack"></div>
+                        <button class="btn-secondary" style="margin-top:10px;" id="btnBackToStep1" onclick="goToUploadStep(1)">← Back</button>
                     </div>
 
-                    <div id="imagePreviewBox" style="display:none; text-align:center; margin-bottom:15px;">
-                        <img id="uploadPreviewImg" src="" style="width:100%; max-height:250px; object-fit:contain; border-radius:8px; border:2px solid #0c235c;">
+                    <div id="uploadStep3" class="wizard-step">
+                        <h3 style="margin-bottom:12px; color:#0c235c;">3. Select Ward</h3>
+                        <div class="btn-stack" id="wardsListStack"></div>
+                        <button class="btn-secondary" style="margin-top:10px;" onclick="goToUploadStep(2)">← Back</button>
                     </div>
 
-                    <button id="btnSubmitPhoto" class="btn-submit" style="display:none;" onclick="submitPhotoOnly()">📤 Upload EC8A for Verification</button>
-                    <button class="btn-secondary" style="margin-top:10px;" id="btnBackFromStep5" onclick="goToUploadStep(4)">← Back</button>
+                    <div id="uploadStep4" class="wizard-step">
+                        <h3 style="margin-bottom:12px; color:#0c235c;">4. Select Polling Unit / Booth</h3>
+                        <div class="btn-stack" id="pusListStack"></div>
+                        <button class="btn-secondary" style="margin-top:10px;" onclick="goToUploadStep(3)">← Back</button>
+                    </div>
+
+                    <div id="uploadStep5" class="wizard-step">
+                        <h3 style="margin-bottom:12px; color:#0c235c;">5. Capture / Attach EC8A Photo</h3>
+                        <div style="background:#1d3557; color:#fff; padding:14px; border-radius:10px; margin-bottom:15px;">
+                            <h4 id="summaryElection">Ogun East Senatorial Election</h4>
+                            <p id="summaryWardPU" style="font-size:12px; color:#a8dadc; margin-top:4px;"></p>
+                        </div>
+
+                        <div style="margin-bottom:15px;">
+                            <label class="btn-action" style="display:block; text-align:center; background:#2563eb; cursor:pointer;">
+                                📷 Take Photo / Attach Image
+                                <input type="file" id="ec8aPhoto" accept="image/*" style="display:none;" onchange="previewUploadImage(this)">
+                            </label>
+                        </div>
+
+                        <div id="imagePreviewBox" style="display:none; text-align:center; margin-bottom:15px;">
+                            <img id="uploadPreviewImg" src="" style="width:100%; max-height:250px; object-fit:contain; border-radius:8px; border:2px solid #0c235c;">
+                        </div>
+
+                        <button id="btnSubmitPhoto" class="btn-submit" style="display:none;" onclick="submitPhotoOnly()">📤 Upload EC8A for Verification</button>
+                        <button class="btn-secondary" style="margin-top:10px;" id="btnBackFromStep5" onclick="goToUploadStep(4)">← Back</button>
+                    </div>
                 </div>
             </section>
 
@@ -944,11 +1125,17 @@ HTML_TEMPLATE = """
             <section id="tab-admin" class="tab-content">
                 <div class="section-heading"><h2>⚙️ Staff & Account Administration</h2></div>
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:15px;">
-                    <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('user')">👤 Create & Scope User</button>
-                    <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('candidate')">👥 Candidates Management</button>
-                    <button class="btn-select-option" style="text-align:center;" onclick="loadAdminData('users')">📜 View Staff Registry</button>
-                    <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('election')" id="btnManageElections">📦 Elections Setup</button>
+                    <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('user')">👤 Create Account</button>
+                    <button class="btn-select-option" style="text-align:center; background:#16a34a;" onclick="copyViewerPortalLink()">📋 Copy Viewer Link</button>
+                    <button class="btn-select-option" style="text-align:center;" onclick="openAdminModal('candidate')">👥 Candidates Setup</button>
+                    <button class="btn-select-option" style="text-align:center;" onclick="loadAdminData('users')">📜 Staff Registry</button>
                 </div>
+                
+                <div id="superAdminElectionsBox" style="margin-bottom:15px;">
+                    <h3 style="color:#0c235c; margin-bottom:8px;">📦 Active Elections Control</h3>
+                    <div id="electionsToggleList" class="party-counter-grid"></div>
+                </div>
+
                 <div id="adminDataDisplay"></div>
 
                 <div id="superAdminResetBox" style="background:#fef2f2; border:1px solid #fca5a5; padding:14px; border-radius:12px; margin-top:20px;">
@@ -974,22 +1161,16 @@ HTML_TEMPLATE = """
         </nav>
     </div>
 
-    <!-- CREATE USER & SCOPING MODAL -->
+    <!-- CREATE USER MODAL -->
     <div id="adminUserModal" class="modal-overlay">
         <div class="modal-card">
-            <h3>👤 Create & Scope User Account</h3>
+            <h3>👤 Create Account</h3>
             <div class="input-group"><label>Full Name</label><input type="text" id="adminUserFullName" placeholder="e.g. Chief Adebayo"></div>
-            <div class="input-group"><label>Username</label><input type="text" id="adminUsername" placeholder="e.g. adebayo_makun"></div>
-            <div class="input-group"><label>Account Password</label><input type="password" id="adminUserPassword" placeholder="Set Account Password"></div>
+            <div class="input-group"><label>Username Account ID</label><input type="text" id="adminUsername" placeholder="e.g. adebayo_ijebu"></div>
+            <div class="input-group"><label>Account Password</label><input type="password" id="adminUserPassword" placeholder="Set Password"></div>
             <div class="input-group">
-                <label>User Role Hierarchy Level</label>
-                <select id="adminUserRole" onchange="onRoleSelectionChanged()">
-                    <option value="LGA Admin">LGA Admin (Assigned to 1 LGA)</option>
-                    <option value="Collation Admin">Collation Admin (Assigned to 1 Ward)</option>
-                    <option value="Field Officer">Field Officer (Assigned to 1 PU)</option>
-                    <option value="Super Admin">Super Admin (Global Root)</option>
-                    <option value="Viewer">Viewer (Read Only)</option>
-                </select>
+                <label>User Role</label>
+                <select id="adminUserRole" onchange="onRoleSelectionChanged()"></select>
             </div>
 
             <div class="input-group" id="groupAssignLga">
@@ -1001,7 +1182,7 @@ HTML_TEMPLATE = """
                 <select id="adminUserWard" onchange="onAdminWardChanged()"></select>
             </div>
             <div class="input-group" id="groupAssignPu" style="display:none;">
-                <label>Assign Polling Unit</label>
+                <label>Assign Polling Unit / Booth</label>
                 <select id="adminUserPu"></select>
             </div>
 
@@ -1011,25 +1192,12 @@ HTML_TEMPLATE = """
         </div>
     </div>
 
-    <!-- ELECTION MODAL -->
-    <div id="adminElectionModal" class="modal-overlay">
-        <div class="modal-card">
-            <h3>📦 Create Election</h3>
-            <div class="input-group"><label>Election Name</label><input type="text" id="adminElectName"></div>
-            <div class="input-group"><label>Election Type</label><select id="adminElectType"><option>Senatorial</option><option>House of Representatives</option><option>State House of Assembly</option><option>Governorship</option><option>Presidential</option><option>Local Government</option></select></div>
-            <div class="input-group"><label>Constituency</label><input type="text" id="adminElectConstituency" value="Ogun East"></div>
-            <div class="input-group"><label>Registered Voters</label><input type="number" id="adminElectVoters" value="1150000"></div>
-            <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateElection()">Save Election</button>
-            <button class="btn-secondary" style="margin-top:8px;" onclick="closeAdminModals()">Cancel</button>
-        </div>
-    </div>
-
     <!-- CANDIDATE MODAL -->
     <div id="adminCandidateModal" class="modal-overlay">
         <div class="modal-card">
             <h3>👥 Add / Update Candidate</h3>
             <div class="input-group"><label>Candidate Full Name</label><input type="text" id="adminCandName" placeholder="Enter Full Name"></div>
-            <div class="input-group"><label>Political Party (19 Parties)</label><select id="adminCandParty"></select></div>
+            <div class="input-group"><label>Political Party</label><select id="adminCandParty"></select></div>
             <div class="input-group"><label>Election Category</label><select id="adminCandElection"></select></div>
             <div class="input-group"><label>Candidate Photograph</label><input type="file" id="adminCandPhoto" accept="image/*"></div>
             <button class="btn-submit" style="background:#16a34a;" onclick="submitCreateCandidate()">Save Candidate Record</button>
@@ -1117,7 +1285,7 @@ HTML_TEMPLATE = """
                     if (tab === 'results') loadWardTable();
                     if (tab === 'upload') loadUploadWizardData();
                     if (tab === 'review') loadReviewQueue();
-                    if (tab === 'admin') loadAdminData('users');
+                    if (tab === 'admin') loadAdminTabContent();
                 });
             });
         });
@@ -1129,6 +1297,13 @@ HTML_TEMPLATE = """
             document.getElementById('dashboardPage').classList.add('active');
             initDropdowns().then(() => {
                 document.querySelector('.nav-item[data-tab="live"]').click();
+            });
+        }
+
+        function copyViewerPortalLink() {
+            const link = window.location.origin;
+            navigator.clipboard.writeText(link).then(() => {
+                alert("📋 Public Viewer Portal Link copied to clipboard:\n" + link);
             });
         }
 
@@ -1163,13 +1338,13 @@ HTML_TEMPLATE = """
                 btnReview.style.display = 'flex';
                 btnAdmin.style.display = 'flex';
                 document.getElementById('superAdminResetBox').style.display = 'block';
-                document.getElementById('btnManageElections').style.display = 'block';
+                document.getElementById('superAdminElectionsBox').style.display = 'block';
             } else if (currentUser.role === 'LGA Admin') {
                 btnUpload.style.display = 'flex';
                 btnReview.style.display = 'flex';
                 btnAdmin.style.display = 'flex';
                 document.getElementById('superAdminResetBox').style.display = 'none';
-                document.getElementById('btnManageElections').style.display = 'none';
+                document.getElementById('superAdminElectionsBox').style.display = 'none';
             } else if (currentUser.role === 'Collation Admin') {
                 btnReview.style.display = 'flex';
             } else if (currentUser.role === 'Field Officer') {
@@ -1178,15 +1353,7 @@ HTML_TEMPLATE = """
         }
 
         function initDropdowns() {
-            return Promise.all([
-                fetch('/api/admin/elections').then(res => res.json()),
-                fetch('/api/locations/lgas').then(res => res.json())
-            ]).then(([elections, lgas]) => {
-                let electOpts = '<option value="all">-- All Elections Combined --</option>';
-                elections.forEach(e => { electOpts += `<option value="${e.id}">${e.name}</option>`; });
-                document.getElementById('liveElectionSelect').innerHTML = electOpts;
-                if (elections.length > 0) document.getElementById('liveElectionSelect').value = elections[0].id;
-
+            return fetch('/api/locations/lgas').then(res => res.json()).then(lgas => {
                 let lgaOpts = '<option value="all">-- All 9 LGAs (Ogun East) --</option>';
                 lgas.forEach(l => { lgaOpts += `<option value="${l}">${l}</option>`; });
                 document.getElementById('liveLgaSelect').innerHTML = lgaOpts;
@@ -1202,10 +1369,10 @@ HTML_TEMPLATE = """
         function onLiveFilterChanged() { loadLiveResults(); }
 
         function loadLiveResults() {
-            const selectedElectionId = document.getElementById('liveElectionSelect')?.value || '1';
+            const selectedType = document.getElementById('liveTypeSelect')?.value || 'all';
             const selectedLga = document.getElementById('liveLgaSelect')?.value || 'all';
 
-            fetch(`/api/live-results?election_id=${encodeURIComponent(selectedElectionId)}&lga=${encodeURIComponent(selectedLga)}`)
+            fetch(`/api/live-results?election_type=${encodeURIComponent(selectedType)}&lga=${encodeURIComponent(selectedLga)}`)
             .then(res => res.json())
             .then(data => {
                 document.getElementById('leaderTitle').innerText = data.leader?.candidate || 'Awaiting Verified Results';
@@ -1253,13 +1420,38 @@ HTML_TEMPLATE = """
 
         function loadWardTable() {
             const selectedLga = document.getElementById('resultsLgaSelect')?.value || 'all';
-            fetch(`/api/ward-results?lga=${encodeURIComponent(selectedLga)}`).then(res => res.json()).then(rows => {
+            const selectedType = document.getElementById('resultsTypeSelect')?.value || 'all';
+
+            fetch(`/api/ward-results?lga=${encodeURIComponent(selectedLga)}&election_type=${encodeURIComponent(selectedType)}`)
+            .then(res => res.json())
+            .then(res => {
+                const parties = res.parties || [];
+                const rows = res.rows || [];
+
+                let headHtml = '<tr><th>LGA</th><th>Ward</th><th>Polling Unit</th><th>Election</th>';
+                parties.forEach(p => { headHtml += `<th>${p}</th>`; });
+                headHtml += '<th>Valid</th><th>Rejected</th><th>Total</th></tr>';
+                document.getElementById('resultsTableHead').innerHTML = headHtml;
+
                 let html = '';
                 rows.forEach(r => {
                     const v = r.party_votes || {};
-                    html += `<tr><td><strong>${r.lga}</strong></td><td>${r.ward}</td><td>${r.polling_unit}<br><small>${r.pu_code}</small></td><td>${v.APC||0}</td><td>${v.PDP||0}</td><td>${v.LP||0}</td><td>${v.NNPP||0}</td><td><strong>${r.valid_votes||0}</strong></td></tr>`;
+                    html += `<tr>
+                        <td><strong>${r.lga}</strong></td>
+                        <td>${r.ward}</td>
+                        <td>${r.polling_unit}<br><small style="color:#2563eb;">${r.pu_code}</small></td>
+                        <td><small>${r.election_name}</small></td>`;
+                    
+                    parties.forEach(p => {
+                        html += `<td>${v[p] || 0}</td>`;
+                    });
+
+                    html += `<td><strong>${r.valid_votes||0}</strong></td>
+                             <td style="color:#dc2626;">${r.rejected_votes||0}</td>
+                             <td><strong>${r.total_votes_cast||0}</strong></td>
+                        </tr>`;
                 });
-                document.getElementById('resultsTableBody').innerHTML = html || '<tr><td colspan="8" style="text-align:center;">No collated results found.</td></tr>';
+                document.getElementById('resultsTableBody').innerHTML = html || `<tr><td colspan="${parties.length + 7}" style="text-align:center; padding:15px;">No collated results found.</td></tr>`;
             });
         }
 
@@ -1269,6 +1461,16 @@ HTML_TEMPLATE = """
         }
 
         function loadUploadWizardData() {
+            if (currentUser.role === 'Collation Admin') {
+                document.getElementById('collationAdminDisabledBox').style.display = 'block';
+                document.getElementById('fieldOfficerLockedBox').style.display = 'none';
+                document.getElementById('uploadWizardContainer').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('collationAdminDisabledBox').style.display = 'none';
+            document.getElementById('uploadWizardContainer').style.display = 'block';
+
             if (currentUser.role === 'Field Officer') {
                 document.getElementById('fieldOfficerLockedBox').style.display = 'block';
                 document.getElementById('fieldLockLgaWard').innerText = `LGA: ${currentUser.assigned_lga} | Ward: ${currentUser.assigned_ward}`;
@@ -1288,12 +1490,17 @@ HTML_TEMPLATE = """
             } else {
                 document.getElementById('fieldOfficerLockedBox').style.display = 'none';
                 document.getElementById('btnBackFromStep5').style.display = 'block';
-                fetch('/api/locations/lgas').then(res => res.json()).then(lgas => {
-                    let lgaBtns = '';
-                    lgas.forEach(l => { lgaBtns += `<button class="btn-select-option" onclick="selectLga('${l}')">${l} LGA</button>`; });
-                    document.getElementById('lgasListStack').innerHTML = lgaBtns;
-                    goToUploadStep(1);
-                });
+                
+                if (currentUser.role === 'LGA Admin') {
+                    selectLga(currentUser.assigned_lga);
+                } else {
+                    fetch('/api/locations/lgas').then(res => res.json()).then(lgas => {
+                        let lgaBtns = '';
+                        lgas.forEach(l => { lgaBtns += `<button class="btn-select-option" onclick="selectLga('${l}')">📍 ${l} LGA</button>`; });
+                        document.getElementById('lgasListStack').innerHTML = lgaBtns;
+                        goToUploadStep(1);
+                    });
+                }
             }
         }
 
@@ -1304,10 +1511,12 @@ HTML_TEMPLATE = """
 
         function selectLga(lga) {
             currentUploadData.lga = lga;
-            fetch('/api/admin/elections').then(res => res.json()).then(elections => {
+            fetch('/api/admin/elections?active_only=1').then(res => res.json()).then(elections => {
                 let electBtns = '';
-                elections.forEach(e => { electBtns += `<button class="btn-select-option" onclick="selectElection('${e.id}', '${e.name}')">${e.name}</button>`; });
-                document.getElementById('electionsListStack').innerHTML = electBtns;
+                elections.forEach(e => {
+                    electBtns += `<button class="btn-select-option" onclick="selectElection('${e.id}', '${e.name}')">🗳️ ${e.name} (${e.type})</button>`;
+                });
+                document.getElementById('electionsListStack').innerHTML = electBtns || '<p>No active elections available.</p>';
                 goToUploadStep(2);
             });
         }
@@ -1317,7 +1526,7 @@ HTML_TEMPLATE = """
             currentUploadData.election_name = name;
             fetch(`/api/locations/wards?lga=${encodeURIComponent(currentUploadData.lga)}`).then(res => res.json()).then(wards => {
                 let wardBtns = '';
-                wards.forEach(w => { wardBtns += `<button class="btn-select-option" onclick="selectWard('${w}')">${w}</button>`; });
+                wards.forEach(w => { wardBtns += `<button class="btn-select-option" onclick="selectWard('${w}')">🏛️ ${w} Ward</button>`; });
                 document.getElementById('wardsListStack').innerHTML = wardBtns;
                 goToUploadStep(3);
             });
@@ -1327,7 +1536,7 @@ HTML_TEMPLATE = """
             currentUploadData.ward = w;
             fetch(`/api/locations/pus?ward=${encodeURIComponent(w)}`).then(res => res.json()).then(pus => {
                 let puBtns = '';
-                pus.forEach(p => { puBtns += `<button class="btn-select-option" onclick="selectPU('${p.polling_unit}', '${p.pu_code}')">${p.polling_unit} (${p.pu_code})</button>`; });
+                pus.forEach(p => { puBtns += `<button class="btn-select-option" onclick="selectPU('${p.polling_unit}', '${p.pu_code}')">📍 ${p.polling_unit} (${p.pu_code})</button>`; });
                 document.getElementById('pusListStack').innerHTML = puBtns;
                 goToUploadStep(4);
             });
@@ -1449,6 +1658,37 @@ HTML_TEMPLATE = """
             });
         }
 
+        function loadAdminTabContent() {
+            loadAdminData('users');
+            if (currentUser.role === 'Super Admin') {
+                fetch('/api/admin/elections').then(res => res.json()).then(elections => {
+                    let html = '';
+                    elections.forEach(e => {
+                        html += `
+                        <div class="party-card" style="display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <strong>${e.name}</strong>
+                                <p><small>Type: ${e.type} | Reg. Voters: ${e.registered_voters.toLocaleString()}</small></p>
+                            </div>
+                            <button class="btn-submit" style="width:auto; padding:6px 12px; font-size:12px; background:${e.is_active ? '#dc2626' : '#16a34a'};" onclick="toggleElectionActive(${e.id}, ${e.is_active ? 0 : 1})">
+                                ${e.is_active ? 'Disable' : 'Enable'}
+                            </button>
+                        </div>`;
+                    });
+                    document.getElementById('electionsToggleList').innerHTML = html;
+                });
+            }
+        }
+
+        function toggleElectionActive(id, newStatus) {
+            fetch('/api/admin/toggle-election', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id: id, is_active: newStatus })
+            }).then(res => res.json()).then(res => {
+                loadAdminTabContent();
+            });
+        }
+
         function onRoleSelectionChanged() {
             const role = document.getElementById('adminUserRole').value;
             const gLga = document.getElementById('groupAssignLga');
@@ -1484,6 +1724,18 @@ HTML_TEMPLATE = """
         function openAdminModal(type) {
             closeAdminModals();
             if (type === 'user') {
+                const roleSel = document.getElementById('adminUserRole');
+                if (currentUser.role === 'Super Admin') {
+                    roleSel.innerHTML = `
+                        <option value="LGA Admin">LGA Admin (Assigned to 1 LGA)</option>
+                        <option value="Viewer">Viewer (Read Only)</option>`;
+                } else if (currentUser.role === 'LGA Admin') {
+                    roleSel.innerHTML = `
+                        <option value="Collation Admin">Collation Admin (Assigned to 1 Ward)</option>
+                        <option value="Field Officer">Field Officer (Assigned to 1 PU)</option>
+                        <option value="Viewer">Viewer (Read Only)</option>`;
+                }
+
                 fetch('/api/locations/lgas').then(res => res.json()).then(lgas => {
                     const lgaSel = document.getElementById('adminUserLga');
                     lgaSel.innerHTML = lgas.map(l => `<option value="${l}">${l}</option>`).join('');
@@ -1500,7 +1752,6 @@ HTML_TEMPLATE = """
                     document.getElementById('adminUserModal').classList.add('active');
                 });
             }
-            if (type === 'election') document.getElementById('adminElectionModal').classList.add('active');
             if (type === 'candidate') {
                 fetch('/api/admin/parties').then(res=>res.json()).then(parties => {
                     let opts = '<option value="">-- Select Party --</option>';
@@ -1539,18 +1790,6 @@ HTML_TEMPLATE = """
             }).then(res => res.json()).then(res => { alert(res.message); closeAdminModals(); loadAdminData('users'); });
         }
 
-        function submitCreateElection() {
-            fetch('/api/admin/elections', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    name: document.getElementById('adminElectName').value,
-                    type: document.getElementById('adminElectType').value,
-                    constituency: document.getElementById('adminElectConstituency').value,
-                    registered_voters: document.getElementById('adminElectVoters').value
-                })
-            }).then(res => res.json()).then(res => { alert(res.message); closeAdminModals(); });
-        }
-
         function submitCreateCandidate() {
             const name = document.getElementById('adminCandName').value.trim();
             const party = document.getElementById('adminCandParty').value;
@@ -1573,7 +1812,7 @@ HTML_TEMPLATE = """
 
         function loadAdminData(type) {
             fetch(`/api/admin/${type}?username=${encodeURIComponent(currentUser.username)}`).then(res => res.json()).then(data => {
-                let html = `<h4 style="color:#0c235c; margin-bottom:8px;">${type.toUpperCase()} (${data.length})</h4><div class="party-counter-grid">`;
+                let html = `<h4 style="color:#0c235c; margin-bottom:8px;">STAFF REGISTRY (${data.length})</h4><div class="party-counter-grid">`;
                 data.forEach(item => {
                     const img = item.photo_url || item.logo_url || '';
                     html += `
@@ -1609,6 +1848,7 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     print(f"==================================================")
     print(f" OGUN EAST 2027 WATCH ACTIVE ON PORT {port}")
+    print(f" Super Admin: Willysmediaworld | Password: Rotimi1972?")
     print(f"==================================================")
     app.run(host='0.0.0.0', port=port, debug=True)
     
