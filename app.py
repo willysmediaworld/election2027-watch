@@ -3585,8 +3585,7 @@ function saveNewPu() {
 </script>
  
 </body>
-</html>
-""" ==========================================
+</html> ==========================================
 HTML_TEMPLATE = ""  # Placeholder — Part 2 fills this
 
 
