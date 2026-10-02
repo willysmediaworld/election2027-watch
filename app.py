@@ -1639,6 +1639,7 @@ OGUN_EAST_LOCATIONS = [
 ("Ogun", "Sagamu", "Ibido/Ituwa/Alara", "OPEN SPACE @ ITUN-MODE JUNCTION IBIDO, SAGAMU", "27/20/15/009"),
 ]
 
+
 # ==========================================
 # DATABASE INITIALIZATION
 # ==========================================
@@ -1746,13 +1747,14 @@ def init_db():
                 ("Zenith Labour Party", "ZLP", "019", ""),
             ])
 
-        # Locations — load only if empty or count mismatched
+        # Locations
         cursor.execute("SELECT COUNT(*) FROM locations")
         current_count = cursor.fetchone()[0]
         if current_count != len(OGUN_EAST_LOCATIONS):
             cursor.execute("DELETE FROM locations")
-            cursor.executemany("INSERT INTO locations (state, lga, ward, polling_unit, pu_code) VALUES (?, ?, ?, ?, ?)",
-                               OGUN_EAST_LOCATIONS)
+            if OGUN_EAST_LOCATIONS:
+                cursor.executemany("INSERT INTO locations (state, lga, ward, polling_unit, pu_code) VALUES (?, ?, ?, ?, ?)",
+                                   OGUN_EAST_LOCATIONS)
             print(f">>> Locations loaded: {len(OGUN_EAST_LOCATIONS)} rows")
         else:
             print(f">>> Locations already loaded: {current_count} rows")
@@ -2042,6 +2044,36 @@ def export_csv():
                     headers={"Content-disposition": "attachment; filename=Ogun_East_2027_Full_Results.csv"})
 
 
+
+@app.route('/api/admin/users/delete', methods=['POST'])
+def delete_user():
+    d = request.json
+    requester = d.get('requested_by', '')
+    target_id = d.get('user_id')
+    if not target_id:
+        return jsonify({"success": False, "message": "User ID required."}), 400
+    conn = get_db(); cursor = conn.cursor()
+    cursor.execute("SELECT role, username FROM users WHERE username = ?", (requester,))
+    req_user = cursor.fetchone()
+    if not req_user or req_user['role'] != 'Super Admin':
+        conn.close()
+        return jsonify({"success": False, "message": "Only Super Admin can delete users."}), 403
+    cursor.execute("SELECT username, role FROM users WHERE id = ?", (target_id,))
+    target = cursor.fetchone()
+    if not target:
+        conn.close()
+        return jsonify({"success": False, "message": "User not found."}), 404
+    if target['username'].lower() == requester.lower():
+        conn.close()
+        return jsonify({"success": False, "message": "You cannot delete your own account."}), 400
+    if target['role'] == 'Super Admin':
+        conn.close()
+        return jsonify({"success": False, "message": "Super Admin accounts cannot be deleted."}), 403
+    cursor.execute("DELETE FROM users WHERE id = ?", (target_id,))
+    conn.commit(); conn.close()
+    return jsonify({"success": True, "message": f"Account '{target['username']}' deleted successfully."})
+
+
 @app.route('/api/admin/users', methods=['GET', 'POST'])
 def handle_users():
     conn = get_db(); cursor = conn.cursor()
@@ -2160,7 +2192,6 @@ def reset_system():
 # ==========================================
 @app.route('/api/admin/locations/tree', methods=['GET'])
 def locations_tree():
-    """Returns full LGA → Ward → PU tree for the editor."""
     conn = get_db(); cursor = conn.cursor()
     cursor.execute("SELECT id, lga, ward, polling_unit, pu_code FROM locations ORDER BY lga, ward, id")
     rows = cursor.fetchall(); conn.close()
@@ -2184,7 +2215,7 @@ def update_pu():
     conn = get_db(); cursor = conn.cursor()
     cursor.execute("UPDATE locations SET polling_unit=?, pu_code=? WHERE id=?", (new_name, new_code, pu_id))
     conn.commit(); conn.close()
-    return jsonify({"success": True, "message": f"Polling Unit updated successfully."})
+    return jsonify({"success": True, "message": "Polling Unit updated successfully."})
 
 
 @app.route('/api/admin/locations/delete-pu', methods=['POST'])
@@ -2196,7 +2227,7 @@ def delete_pu():
     conn = get_db(); cursor = conn.cursor()
     cursor.execute("DELETE FROM locations WHERE id=?", (pu_id,))
     conn.commit(); conn.close()
-    return jsonify({"success": True, "message": f"Polling Unit deleted."})
+    return jsonify({"success": True, "message": "Polling Unit deleted."})
 
 
 @app.route('/api/admin/locations/rename-ward', methods=['POST'])
@@ -2279,7 +2310,7 @@ def get_pus():
     return jsonify(pus)
 
 
-# ==========================================
+
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="en">
@@ -2370,7 +2401,7 @@ body { background-color: #ffffff; color: #1a1a1a; min-height: 100vh; }
 </head>
 <body>
 
-<!-- ========== AUTH PAGE (PUBLIC ACCESS REMOVED) ========== -->
+<!-- ========== AUTH PAGE ========== -->
 <div id="authPage" class="page active">
   <div class="auth-container">
     <h1 class="auth-title">OGUN EAST 2027</h1>
@@ -3224,18 +3255,28 @@ function onRoleSelectionChanged() {
   }
 }
 
+/* ---- UPDATED: No auto-pick, forces manual ward selection ---- */
 function onAdminLgaChanged() {
   const lga = document.getElementById('adminUserLga').value;
+  const wardSel = document.getElementById('adminUserWard');
+  const puSel = document.getElementById('adminUserPu');
+  wardSel.innerHTML = '<option value="">-- Select Ward --</option>';
+  puSel.innerHTML = '<option value="">-- Select Ward First --</option>';
+  if (!lga) return;
   fetch(`/api/locations/wards?lga=${encodeURIComponent(lga)}`).then(res => res.json()).then(wards => {
-    document.getElementById('adminUserWard').innerHTML = wards.map(w => `<option value="${w}">${w}</option>`).join('');
-    onAdminWardChanged();
+    wardSel.innerHTML = '<option value="">-- Select Ward --</option>' +
+      wards.map(w => `<option value="${w}">${w}</option>`).join('');
   });
 }
 
 function onAdminWardChanged() {
   const ward = document.getElementById('adminUserWard').value;
+  const puSel = document.getElementById('adminUserPu');
+  puSel.innerHTML = '<option value="">-- Select Polling Unit --</option>';
+  if (!ward) return;
   fetch(`/api/locations/pus?ward=${encodeURIComponent(ward)}`).then(res => res.json()).then(pus => {
-    document.getElementById('adminUserPu').innerHTML = pus.map(p => `<option value="${p.pu_code}" data-name="${p.polling_unit}">${p.polling_unit} (${p.pu_code})</option>`).join('');
+    puSel.innerHTML = '<option value="">-- Select Polling Unit --</option>' +
+      pus.map(p => `<option value="${p.pu_code}" data-name="${p.polling_unit}">${p.polling_unit} (${p.pu_code})</option>`).join('');
   });
 }
 
@@ -3255,15 +3296,16 @@ function openAdminModal(type) {
     }
     fetch('/api/locations/lgas').then(res => res.json()).then(lgas => {
       const lgaSel = document.getElementById('adminUserLga');
-      lgaSel.innerHTML = lgas.map(l => `<option value="${l}">${l}</option>`).join('');
+      lgaSel.innerHTML = '<option value="">-- Select LGA --</option>' +
+        lgas.map(l => `<option value="${l}">${l}</option>`).join('');
       if (currentUser.role === 'LGA Admin') {
         lgaSel.value = currentUser.assigned_lga;
         lgaSel.disabled = true;
+        onAdminLgaChanged();
       } else {
         lgaSel.disabled = false;
       }
       onRoleSelectionChanged();
-      onAdminLgaChanged();
       document.getElementById('adminUserModal').classList.add('active');
     });
   }
@@ -3286,28 +3328,45 @@ function closeAdminModals() {
   document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
 }
 
+/* ---- UPDATED: Validation before submit ---- */
 function submitCreateUser() {
+  const role = document.getElementById('adminUserRole').value;
+  const lga = document.getElementById('adminUserLga').value;
+  const ward = document.getElementById('adminUserWard').value;
   const puSelect = document.getElementById('adminUserPu');
   const selectedPuOpt = puSelect.options[puSelect.selectedIndex];
+  const fullName = document.getElementById('adminUserFullName').value.trim();
+  const username = document.getElementById('adminUsername').value.trim();
+  const password = document.getElementById('adminUserPassword').value.trim();
+
+  if (!fullName || !username || !password) return alert("Full Name, Username, and Password are required.");
+  if (!lga) return alert("Please select an LGA.");
+  if ((role === 'Collation Admin' || role === 'Field Officer') && !ward)
+    return alert("Please manually select a Ward for this role.");
+  if (role === 'Field Officer' && !puSelect.value)
+    return alert("Please manually select a Polling Unit for this Field Officer.");
+
   fetch('/api/admin/users', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
-      full_name: document.getElementById('adminUserFullName').value,
-      username: document.getElementById('adminUsername').value,
-      password: document.getElementById('adminUserPassword').value,
-      role: document.getElementById('adminUserRole').value,
-      assigned_lga: document.getElementById('adminUserLga').value,
-      assigned_ward: document.getElementById('adminUserWard').value,
+      full_name: fullName,
+      username: username,
+      password: password,
+      role: role,
+      assigned_lga: lga,
+      assigned_ward: ward,
       assigned_pu_code: puSelect.value,
-      assigned_pu_name: selectedPuOpt ? selectedPuOpt.getAttribute('data-name') : '',
+      assigned_pu_name: selectedPuOpt ? (selectedPuOpt.getAttribute('data-name') || '') : '',
       email: document.getElementById('adminUserEmail').value,
       created_by_user: currentUser.username
     })
   }).then(res => res.json()).then(res => {
     alert(res.message);
-    closeAdminModals();
-    loadAdminData('users');
+    if (res.success) {
+      closeAdminModals();
+      loadAdminData('users');
+    }
   });
 }
 
@@ -3330,24 +3389,46 @@ function submitCreateCandidate() {
     });
 }
 
+/* ---- UPDATED: LoadAdminData with Remove button ---- */
 function loadAdminData(type) {
   fetch(`/api/admin/${type}?username=${encodeURIComponent(currentUser.username)}`).then(res => res.json()).then(data => {
     let html = `<h4 style="color:#0c235c; margin-bottom:8px;">STAFF REGISTRY (${data.length})</h4><div class="party-counter-grid">`;
     data.forEach(item => {
+      const canDelete = currentUser.role === 'Super Admin'
+                      && item.role !== 'Super Admin'
+                      && item.username !== currentUser.username;
+      const deleteBtn = canDelete
+        ? `<button class="mini-btn mini-btn-del" style="padding:6px 10px; font-size:11px;" onclick="confirmDeleteUser(${item.id}, '${(item.username||'').replace(/'/g,"\\'")}', '${(item.full_name||'').replace(/'/g,"\\'")}')">🗑️ Remove</button>`
+        : '';
       html += `
-        <div class="party-card" style="display:flex; align-items:center; gap:10px;">
-          👤
-          <div>
-            <strong>${item.full_name || item.name} (@${item.username||''})</strong>
-            <p><small>Role: <b>${item.role}</b>
-              ${item.assigned_lga ? '| LGA: ' + item.assigned_lga : ''}
-              ${item.assigned_ward ? '| Ward: ' + item.assigned_ward : ''}
-              ${item.assigned_pu_code ? '| PU: ' + item.assigned_pu_code : ''}
-            </small></p>
+        <div class="party-card" style="display:flex; align-items:center; gap:10px; justify-content:space-between;">
+          <div style="display:flex; align-items:center; gap:10px; flex:1;">
+            👤
+            <div>
+              <strong>${item.full_name || item.name} (@${item.username||''})</strong>
+              <p><small>Role: <b>${item.role}</b>
+                ${item.assigned_lga ? '| LGA: ' + item.assigned_lga : ''}
+                ${item.assigned_ward ? '| Ward: ' + item.assigned_ward : ''}
+                ${item.assigned_pu_code ? '| PU: ' + item.assigned_pu_code : ''}
+              </small></p>
+            </div>
           </div>
+          ${deleteBtn}
         </div>`;
     });
     document.getElementById('adminDataDisplay').innerHTML = html + '</div>';
+  });
+}
+
+function confirmDeleteUser(userId, username, fullName) {
+  if (!confirm(`🗑️ Remove this account?\n\nName: ${fullName}\nUsername: ${username}\n\nThis will permanently delete the account. Their previous submissions will remain in the system.\n\nThis cannot be undone. Continue?`)) return;
+  fetch('/api/admin/users/delete', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ user_id: userId, requested_by: currentUser.username })
+  }).then(res => res.json()).then(res => {
+    alert(res.message);
+    if (res.success) loadAdminData('users');
   });
 }
 
@@ -3362,7 +3443,7 @@ function triggerSystemReset() {
 }
 
 /* =============================================
-   WARD/PU EDITOR — THE NEW FEATURE
+   WARD/PU EDITOR
    ============================================= */
 function openWardPUEditor() {
   document.getElementById('wardPUEditorModal').classList.add('active');
@@ -3463,7 +3544,6 @@ function toggleWardExpand(el) {
   if (body) body.style.display = body.style.display === 'none' ? 'block' : 'none';
 }
 
-/* EDIT PU */
 function openEditPu(id, name, code) {
   document.getElementById('editPuId').value = id;
   document.getElementById('editPuName').value = name;
@@ -3487,9 +3567,8 @@ function savePuEdit() {
   });
 }
 
-/* DELETE PU */
 function confirmDeletePu(id, name) {
-  if (!confirm(`🗑️ Delete this polling unit?\n\n"${name}"\n\nThis cannot be undone. Existing submissions keep their record but the PU will no longer appear in new uploads.`)) return;
+  if (!confirm(`🗑️ Delete this polling unit?\n\n"${name}"\n\nThis cannot be undone.`)) return;
   fetch('/api/admin/locations/delete-pu', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -3500,7 +3579,6 @@ function confirmDeletePu(id, name) {
   });
 }
 
-/* RENAME WARD */
 function openRenameWard(lga, oldWard) {
   document.getElementById('renameWardLga').value = lga;
   document.getElementById('renameWardOld').value = oldWard;
@@ -3530,7 +3608,7 @@ function saveWardRename() {
 function confirmDeleteWard() {
   const lga = document.getElementById('renameWardLga').value;
   const ward = document.getElementById('renameWardOld').value;
-  if (!confirm(`⚠️ DELETE ENTIRE WARD?\n\nLGA: ${lga}\nWard: ${ward}\n\nAll polling units under this ward will be permanently removed. Existing submissions keep their records, but the ward will no longer be usable.\n\nThis cannot be undone. Continue?`)) return;
+  if (!confirm(`⚠️ DELETE ENTIRE WARD?\n\nLGA: ${lga}\nWard: ${ward}\n\nAll polling units under this ward will be permanently removed.\n\nThis cannot be undone. Continue?`)) return;
   if (!confirm(`Final confirmation — delete "${ward}" from ${lga}?`)) return;
   fetch('/api/admin/locations/delete-ward', {
     method: 'POST',
@@ -3544,7 +3622,6 @@ function confirmDeleteWard() {
   });
 }
 
-/* ADD NEW PU */
 function openAddPuModal() {
   fetch('/api/locations/lgas').then(res => res.json()).then(lgas => {
     const sel = document.getElementById('addPuLga');
@@ -3582,8 +3659,9 @@ function saveNewPu() {
     }
   });
 }
+
 </script>
- 
+
 </body>
 </html>
 """
@@ -3604,3 +3682,4 @@ if __name__ == '__main__':
     print("  Open: http://127.0.0.1:5000")
     print("=" * 60)
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+
