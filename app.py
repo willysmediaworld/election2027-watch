@@ -10,9 +10,14 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
-UPLOAD_FOLDER = 'static/uploads'
+
+# ==========================================
+# ABSOLUTE PATH RESOLUTION & DATABASE CONFIG
+# ==========================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_NAME = os.path.join(BASE_DIR, "ogun_east_2027_production.db")
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-DB_NAME = "ogun_east_2027_production.db"
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 
@@ -20,7 +25,7 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # ==========================================
-# DATABASE SETUP & COMPLETE OGUN EAST DATA
+# DATABASE INITIALIZATION & SEEDING ENGINE
 # ==========================================
 def get_db():
     conn = sqlite3.connect(DB_NAME)
@@ -80,7 +85,7 @@ def init_db():
         )
     ''')
 
-    # 6. Locations Table (All 9 LGAs, Wards & Polling Units)
+    # 6. Locations Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS locations (
             id INTEGER PRIMARY KEY AUTOINCREMENT, state TEXT DEFAULT 'Ogun',
@@ -88,7 +93,7 @@ def init_db():
         )
     ''')
     
-    # Ensure Super Admin Account exists with EXACT credentials: Willysmediaworld / Rotimi1972
+    # Force Create / Sync Super Admin Account: Willysmediaworld / Rotimi1972
     super_admin_pass = generate_password_hash("Rotimi1972")
     cursor.execute("SELECT id FROM users WHERE LOWER(username) = 'willysmediaworld'")
     row = cursor.fetchone()
@@ -101,7 +106,7 @@ def init_db():
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, ("Oladele Rotimi Williams", "Willysmediaworld", super_admin_pass, "Super Admin", "admin@electionwatch.ng", "System", now_str))
 
-    # Preload Complete Ogun East Elections List
+    # Preload Active Ogun East Elections
     cursor.execute("SELECT COUNT(*) FROM elections")
     if cursor.fetchone()[0] == 0:
         default_elections = [
@@ -115,7 +120,7 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO elections (name, type, constituency, registered_voters, is_active) VALUES (?, ?, ?, ?, ?)", default_elections)
 
-    # Preload ALL 19 Registered INEC Political Parties
+    # Preload All 19 Registered INEC Political Parties
     cursor.execute("SELECT COUNT(*) FROM parties")
     if cursor.fetchone()[0] < 19:
         cursor.execute("DELETE FROM parties")
@@ -142,12 +147,12 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO parties (name, acronym, inec_code, logo_url, is_active) VALUES (?, ?, ?, ?, 1)", all_inec_parties)
 
-    # Preload COMPLETE Ogun East Locations (9 LGAs, Wards & Polling Units)
+    # Preload All 9 Ogun East LGAs, Wards & Polling Units
     cursor.execute("SELECT COUNT(*) FROM locations")
     if cursor.fetchone()[0] < 90:
         cursor.execute("DELETE FROM locations")
         ogun_east_locations = [
-            # 1. SAGAMU LGA (15 Wards)
+            # 1. SAGAMU LGA
             ("Ogun", "Sagamu", "Makun I", "ST. PAULS PRY SCH MAKUN I", "27/18/01/001"),
             ("Ogun", "Sagamu", "Makun I", "EWUSI PALACE SQUARE", "27/18/01/002"),
             ("Ogun", "Sagamu", "Makun II", "AJEDE COMMUNITY SCH", "27/18/02/001"),
@@ -165,7 +170,7 @@ def init_db():
             ("Ogun", "Sagamu", "Ewusi", "EWUSI COMMUNITY PRY SCH", "27/18/14/001"),
             ("Ogun", "Sagamu", "Aiyegbami", "AIYEGBAMI MARKET SQUARE", "27/18/15/001"),
 
-            # 2. IJEBU ODE LGA (11 Wards)
+            # 2. IJEBU ODE LGA
             ("Ogun", "Ijebu Ode", "Porogun I", "POROGUN CHURCH PRY SCH", "27/11/01/001"),
             ("Ogun", "Ijebu Ode", "Porogun I", "COURT HALL POROGUN", "27/11/01/002"),
             ("Ogun", "Ijebu Ode", "Porogun II", "ITA OLE MARKET SQUARE", "27/11/02/001"),
@@ -179,7 +184,7 @@ def init_db():
             ("Ogun", "Ijebu Ode", "Oke-Aje", "OKE-AJE MARKET SQUARE", "27/11/10/001"),
             ("Ogun", "Ijebu Ode", "Agboro", "AGBORO COMMUNITY SCH", "27/11/11/001"),
 
-            # 3. IJEBU NORTH LGA (11 Wards)
+            # 3. IJEBU NORTH LGA
             ("Ogun", "Ijebu North", "Ago Iwoye I", "METHODIST PRY SCH AGO IWOYE", "27/09/01/001"),
             ("Ogun", "Ijebu North", "Ago Iwoye II", "FOWOSEJE TOWN HALL", "27/09/02/001"),
             ("Ogun", "Ijebu North", "Oru/Awa/Ilaporu", "ORU TOWN HALL", "27/09/03/001"),
@@ -192,7 +197,7 @@ def init_db():
             ("Ogun", "Ijebu North", "Agunboye", "AGUNBOYE PRY SCH", "27/09/10/001"),
             ("Ogun", "Ijebu North", "Podo", "PODO COMMUNITY HALL", "27/09/11/001"),
 
-            # 4. IJEBU EAST LGA (11 Wards)
+            # 4. IJEBU EAST LGA
             ("Ogun", "Ijebu East", "Ijebu Mushin I", "ODOSEGBUREN SQUARE", "27/07/01/001"),
             ("Ogun", "Ijebu East", "Ijebu Mushin II", "MUSHIN CENTRAL PRY SCH", "27/07/02/001"),
             ("Ogun", "Ijebu East", "Ijebu Ife I", "ITAKO OLUWERI SQUARE", "27/07/03/001"),
@@ -205,7 +210,7 @@ def init_db():
             ("Ogun", "Ijebu East", "Fowoseje", "FOWOSEJE SCH", "27/07/10/001"),
             ("Ogun", "Ijebu East", "Telefoni", "TELEFONI COMMUNITY HALL", "27/07/11/001"),
 
-            # 5. IKENNE LGA (10 Wards)
+            # 5. IKENNE LGA
             ("Ogun", "Ikenne", "Iperu I", "AKESAN MARKET SQUARE IPERU", "27/12/01/001"),
             ("Ogun", "Ikenne", "Iperu II", "CHRIST CHURCH PRY SCH IPERU", "27/12/02/001"),
             ("Ogun", "Ikenne", "Iperu III", "IPERU HIGH SCH", "27/12/03/001"),
@@ -217,7 +222,7 @@ def init_db():
             ("Ogun", "Ikenne", "Ogere I", "OGERE TOWN HALL", "27/12/09/001"),
             ("Ogun", "Ikenne", "Ogere II", "OGERE MARKET SQUARE", "27/12/10/001"),
 
-            # 6. REMO NORTH LGA (10 Wards)
+            # 6. REMO NORTH LGA
             ("Ogun", "Remo North", "Isara I", "ISARA TOWN HALL", "27/17/01/001"),
             ("Ogun", "Remo North", "Isara II", "AFIN ISARA FRONTAGE", "27/17/02/001"),
             ("Ogun", "Remo North", "Ipara", "IPARA MARKET SQUARE", "27/17/03/001"),
@@ -229,7 +234,7 @@ def init_db():
             ("Ogun", "Remo North", "Fowoseje", "FOWOSEJE HALL", "27/17/09/001"),
             ("Ogun", "Remo North", "Orile Oko", "ORILE OKO PRY SCH", "27/17/10/001"),
 
-            # 7. IJEBU NORTH EAST LGA (10 Wards)
+            # 7. IJEBU NORTH EAST LGA
             ("Ogun", "Ijebu North East", "Atan", "ATAN TOWN HALL", "27/10/01/001"),
             ("Ogun", "Ijebu North East", "Ilese", "ILESE GRAMMAR SCH", "27/10/02/001"),
             ("Ogun", "Ijebu North East", "Itamapako", "ITAMAPAKO PRY SCH", "27/10/03/001"),
@@ -241,7 +246,7 @@ def init_db():
             ("Ogun", "Ijebu North East", "Ososa North", "OSOSA HIGH SCH", "27/10/09/001"),
             ("Ogun", "Ijebu North East", "Imuroko", "IMUROKO COMMUNITY SCH", "27/10/10/001"),
 
-            # 8. OGUN WATERSIDE LGA (10 Wards)
+            # 8. OGUN WATERSIDE LGA
             ("Ogun", "Ogun Waterside", "Abigi", "ABIGI TOWN HALL", "27/15/01/001"),
             ("Ogun", "Ogun Waterside", "Iwopin", "IWOPIN JETTY SQUARE", "27/15/02/001"),
             ("Ogun", "Ogun Waterside", "Ibiade", "IBIADE MARKET SQUARE", "27/15/03/001"),
@@ -253,7 +258,7 @@ def init_db():
             ("Ogun", "Ogun Waterside", "Ayede", "AYEDE COMMUNITY SCH", "27/15/09/001"),
             ("Ogun", "Ogun Waterside", "Ayila", "AYILA TOWN HALL", "27/15/10/001"),
 
-            # 9. ODOGBOLU LGA (15 Wards)
+            # 9. ODOGBOLU LGA
             ("Ogun", "Odogbolu", "Odogbolu I", "ODOGBOLU TOWN HALL", "27/14/01/001"),
             ("Ogun", "Odogbolu", "Odogbolu II", "ODOGBOLU HIGH SCH", "27/14/02/001"),
             ("Ogun", "Odogbolu", "Aiyepe", "AIYEPE CENTRAL SCH", "27/14/03/001"),
@@ -508,7 +513,7 @@ def upload_photo_result():
             "ward": request.form.get("ward", ""),
             "polling_unit": request.form.get("polling_unit", ""),
             "pu_code": request.form.get("pu_code", ""),
-            "image_url": f"/{filepath}"
+            "image_url": f"/static/uploads/{filename}"
         }
         return jsonify(save_pending_photo_submission(data, submitted_by))
     return jsonify({"status": "error", "message": "Invalid file format"}), 400
@@ -759,7 +764,7 @@ def handle_candidates():
                 filename = secure_filename(f"cand_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}")
                 filepath = os.path.join(UPLOAD_FOLDER, filename)
                 file.save(filepath)
-                photo_url = f"/{filepath}"
+                photo_url = f"/static/uploads/{filename}"
 
         cursor.execute("SELECT id FROM candidates WHERE party = ? AND election_name = ?", (party, election_name))
         existing = cursor.fetchone()
@@ -827,7 +832,7 @@ def get_pus():
     return jsonify(pus)
 
 # ==========================================
-# FRONTEND UI (PRODUCTION INTERFACE)
+# FRONTEND SINGLE PAGE INTERFACE
 # ==========================================
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -962,7 +967,7 @@ HTML_TEMPLATE = """
 
         <main class="dashboard-content">
 
-            <!-- TAB 1: LIVE FEED & REAL-TIME PARTY COUNTER -->
+            <!-- TAB 1: LIVE FEED -->
             <section id="tab-live" class="tab-content active">
                 <div class="section-heading"><h2>📊 Live District Collation</h2></div>
 
@@ -1016,7 +1021,7 @@ HTML_TEMPLATE = """
                 <div id="standingsContainer" class="party-counter-grid"></div>
             </section>
 
-            <!-- TAB 2: WARD / PU RESULTS TABLE -->
+            <!-- TAB 2: WARD RESULTS TABLE -->
             <section id="tab-results" class="tab-content">
                 <div class="section-heading">
                     <h2>📋 Ward Breakdown & Full Table</h2>
@@ -1053,7 +1058,7 @@ HTML_TEMPLATE = """
                 </div>
             </section>
 
-            <!-- TAB 3: UPLOAD RESULT SHEET -->
+            <!-- TAB 3: UPLOAD RESULT -->
             <section id="tab-upload" class="tab-content">
                 <div class="section-heading"><h2>📥 Submit Result Sheet (EC8A)</h2></div>
 
@@ -1117,14 +1122,14 @@ HTML_TEMPLATE = """
                 </div>
             </section>
 
-            <!-- TAB 4: REVIEW & COLLATION -->
+            <!-- TAB 4: REVIEW -->
             <section id="tab-review" class="tab-content">
                 <div class="section-heading"><h2 id="reviewTabTitle">🔍 Verification Queue</h2></div>
                 <div class="info-box" id="reviewScopeBanner"></div>
                 <div id="reviewQueueList"></div>
             </section>
 
-            <!-- TAB 5: ADMINISTRATION -->
+            <!-- TAB 5: ADMIN -->
             <section id="tab-admin" class="tab-content">
                 <div class="section-heading"><h2>⚙️ Staff & Account Administration</h2></div>
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:15px;">
@@ -1208,7 +1213,7 @@ HTML_TEMPLATE = """
         </div>
     </div>
 
-    <!-- REVIEW COLLATION MODAL -->
+    <!-- REVIEW MODAL -->
     <div id="reviewModal" class="modal-overlay">
         <div class="modal-card">
             <h3>🔍 Verification & Collation</h3>
@@ -1850,7 +1855,8 @@ def index():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     print(f"==================================================")
-    print(f" OGUN EAST 2027 WATCH ACTIVE ON PORT {port}")
+    print(f" OGUN EAST 2027 WATCH ONLINE")
+    print(f" Database Path        : {DB_NAME}")
     print(f" Super Admin Username : Willysmediaworld")
     print(f" Super Admin Password : Rotimi1972")
     print(f"==================================================")
